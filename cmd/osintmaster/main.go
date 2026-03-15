@@ -7,10 +7,10 @@ import (
 	"osint/internal/cli"
 	"osint/internal/core"
 	"osint/internal/output"
+	"osint/internal/services/domain"
 	"osint/internal/services/fullname"
 	"osint/internal/services/ip"
 	"osint/internal/services/username"
-	// "osint/internal/services/domain" // Add when implemented
 )
 
 func main() {
@@ -38,9 +38,7 @@ func main() {
 	case cli.ModeUsername:
 		res, runErr = username.Run(opts.Query)
 	case cli.ModeDomain:
-		// res, runErr = domain.Run(opts.Query) // Add when implemented
-		fmt.Fprintln(os.Stderr, "Error: domain mode not yet implemented")
-		os.Exit(1)
+		res, runErr = domain.Run(opts.Query) // NOW ENABLED
 	default:
 		fmt.Fprintln(os.Stderr, "Error: no mode selected (-n, -i, -u, -d)")
 		cli.PrintHelp(os.Stderr)
