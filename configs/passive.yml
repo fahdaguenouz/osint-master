@@ -1,0 +1,9 @@
+# this is paasive.yml
+# Example config (optional)
+# ip_provider:
+#   api: "ipinfo"
+#   token: "YOUR_TOKEN_HERE"
+#
+# fullname_sources:
+#   - type: "csv"
+#     path: "./data/directory.csv"
