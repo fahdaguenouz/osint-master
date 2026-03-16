@@ -46,18 +46,29 @@ type IPResult struct {
 }
 
 type UsernameResult struct {
-	Username     string
-	Networks     []NetworkResult
+	Username       string
+	Networks       []NetworkResult
 	RecentActivity string // Summary of recent activity across platforms
+	LastPost       string // The most recent post/activity found
+	LastPostDate   string // When it was posted
+	LastPostPlatform string // Which platform had the newest activity
 }
 
 type NetworkResult struct {
 	Name        string
 	URL         string
 	Found       bool
-	ProfileInfo string // Bio/description if available
-	Followers   string   // Follower count if available
-	LastActive  string   // Last activity date if available
+	ProfileInfo string // Bio/description
+	Followers   string // Follower count
+	LastActive  string // Last activity date if available
+	RecentPosts []Post // Recent posts/activity (up to 3)
+}
+
+type Post struct {
+	Content   string
+	Date      string
+	Platform  string
+	URL       string
 }
 
 type DomainResult struct {

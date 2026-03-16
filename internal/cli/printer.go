@@ -19,7 +19,6 @@ func PrintResult(w io.Writer, r core.Result) {
 	}
 
 	switch r.Kind {
-	
 
 	case core.KindIP:
 		if r.IP.ISP != "" {
@@ -32,7 +31,7 @@ func PrintResult(w io.Writer, r core.Result) {
 			fmt.Fprintf(w, "Country: %s\n", r.IP.Country)
 		}
 		if r.IP.ASN != "" {
-			fmt.Fprintf(w, "ASN: %s\n", r.IP.ASN)	
+			fmt.Fprintf(w, "ASN: %s\n", r.IP.ASN)
 		}
 		if r.IP.Lat != 0 || r.IP.Lon != 0 {
 			fmt.Fprintf(w, "Lat/Lon: %.4f, %.4f\n", r.IP.Lat, r.IP.Lon)
@@ -45,31 +44,36 @@ func PrintResult(w io.Writer, r core.Result) {
 		}
 
 	case core.KindUsername:
-	for _, n := range r.Username.Networks {
-		val := "Not Found"
-		if n.Found {
-			val = "Found"
+		for _, n := range r.Username.Networks {
+			val := "Not Found"
+			if n.Found {
+				val = "Found"
+			}
+
+			name := n.Name
+			if len(name) > 0 {
+				name = strings.ToUpper(name[:1]) + name[1:]
+			}
+
+			fmt.Fprintf(w, "%s: %s", name, val)
+			if n.Followers != "" {
+				fmt.Fprintf(w, " (%s followers)", n.Followers)
+			}
+			fmt.Fprintln(w)
+
+			if n.ProfileInfo != "" {
+				fmt.Fprintf(w, "  Bio: %s\n", n.ProfileInfo)
+			}
 		}
-		
-		name := n.Name
-		if len(name) > 0 {
-			name = strings.ToUpper(name[:1]) + name[1:]
-		}
-		
-		fmt.Fprintf(w, "%s: %s", name, val)
-		if n.Followers != "" {
-			fmt.Fprintf(w, " (%s followers)", n.Followers)
-		}
-		fmt.Fprintln(w)
-		
-		if n.ProfileInfo != "" {
-			fmt.Fprintf(w, "  Bio: %s\n", n.ProfileInfo)
-		}
-	}
-	
-	if r.Username.RecentActivity != "" {
+
 		fmt.Fprintf(w, "\nRecent Activity: %s\n", r.Username.RecentActivity)
-	}
+
+		if r.Username.LastPostPlatform != "" {
+			fmt.Fprintf(w, "Last Post: %s on %s (%s)\n",
+				r.Username.LastPost,
+				r.Username.LastPostPlatform,
+				r.Username.LastPostDate)
+		}
 
 	case core.KindDomain: // NEW: Add domain output
 		fmt.Fprintf(w, "Main Domain: %s\n", r.Input)

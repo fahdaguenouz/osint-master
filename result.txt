@@ -1,15 +1,21 @@
-Facebook: Not Found
-  URL: https://web.facebook.com/yoofahdagchill
-Twitter: Found
-  URL: https://x.com/yoofahdagchill
-Instagram: Found
-  URL: https://www.instagram.com/yoofahdagchill/
-Tiktok: Found
-  URL: https://www.tiktok.com/@yoofahdagchill
-Github: Not Found
-  URL: https://github.com/yoofahdagchill
+OSINT-Master Report
+==================
 
-Recent Activity: Active on: twitter, instagram, tiktok
+Query: yoofahdagchill
+Type: username
+Timestamp: 2026-03-16T14:38:59Z
+
+Warnings:
+  - facebook: unexpected status 400
+
+Facebook: Not Found
+Twitter: Found
+Instagram: Found
+Tiktok: Not Found
+Github: Not Found
+
+Recent Activity: Active on: twitter, instagram
+
+Sources: direct HTTP check + HTML fingerprint
 
 Data saved in result file
-Timestamp: 2026-03-16T14:11:47Z

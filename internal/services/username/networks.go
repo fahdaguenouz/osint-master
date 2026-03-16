@@ -5,7 +5,7 @@ type Network struct {
 	URL  func(handle string) string
 }
 
-//  networks 
+// DefaultNetworks - 5 social networks as required
 var DefaultNetworks = []Network{
 	{Name: "facebook", URL: func(h string) string { return "https://web.facebook.com/" + h }},
 	{Name: "twitter", URL: func(h string) string { return "https://x.com/" + h }},
