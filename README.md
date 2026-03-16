@@ -1,269 +1,345 @@
-## OSINT-Master
 
-<center>
-<img src="./resources/osint-meme.png?raw=true" style="width: 673px !important; height: 439px !important;"/>
-</center>
+## `README.md`
 
-### Introduction
+```markdown
+# OSINT-Master
 
-Open-source intelligence (OSINT) is a key component of cybersecurity, providing valuable insights into potential vulnerabilities and security risks. This project involves creating a tool that performs comprehensive passive reconnaissance using publicly available data.
+A comprehensive open-source intelligence (OSINT) tool for passive reconnaissance, built in Go.
 
-### Objective
+![OSINT Meme](resources/osint-meme.png)
 
-The goal is to build a multi-functional tool using a programming language of your choice. The tool is capable of retrieving detailed information based on user inputs such as `IP addresses`, `usernames`, and `domains`. This project will enhance your skills in data analysis, ethical considerations, and the use of various cybersecurity tools and APIs.
+## Overview
 
-By completing this project, you will:
+OSINT-Master is a multi-functional command-line tool that performs passive reconnaissance using publicly available data sources. It retrieves detailed information based on user inputs including IP addresses, usernames, and domains.
 
-- Develop an understanding of OSINT techniques and their applications.
-- Gain practical experience in programming, API integration, and data handling.
-- Learn to identify and mitigate security risks, including subdomain takeovers.
-- Understand the ethical and legal implications of cybersecurity practices.
+**⚠️ Educational Use Only**: This tool is designed for educational purposes and authorized security testing only.
 
-### Resources
+## Features
 
-Some useful resources:
+- **IP Address Lookup**: Geolocation, ISP details, ASN, and abuse reputation checking
+- **Username Search**: Profile discovery across 5+ social networks (GitHub, Twitter/X, Instagram, TikTok, Facebook) with bio, follower counts, and recent activity
+- **Domain Enumeration**: Subdomain discovery, SSL certificate validation, and subdomain takeover risk detection
+- **Full Name Search** (Bonus): Basic full name parsing (extensible for future enhancement)
 
-- [Open-Source Intelligence](https://en.wikipedia.org/wiki/Open-source_intelligence)
-- [Doxing](https://en.wikipedia.org/wiki/Doxing)
-- [OSINT Tools on GitHub](https://github.com/topics/osint-tools)
-- [OSINT Framework](https://osintframework.com/) - Comprehensive collection of OSINT tools and resources
-- [Awesome OSINT](https://github.com/jivoi/awesome-osint) - Curated list of OSINT resources and tools
-- [OSINT Techniques](https://www.osinttechniques.com/) - Resources and techniques for OSINT investigations
-- [IntelTechniques](https://inteltechniques.com/tools/index.html) - Collection of OSINT search tools
+## Prerequisites
 
-Before asking for help, ask yourself if you have really thought about all the possibilities.
+- Go 1.21 or higher
+- Internet connection
+- (Optional) AbuseIPDB API key for enhanced IP reputation checking
 
-### Role Play
+## Installation
 
-To enhance the learning experience and assess your knowledge, a role-play question session will be included as part of this project. This section will involve answering a series of questions in a simulated real-world scenario where you assume the role of a Cyber Security Expert explaining how to protect information from OSINT techniques to a team or stakeholder.
+```bash
+# Clone the repository
+git clone https://github.com/fahdaguenouz/osint
+cd osint
 
-The goal of the role-play question session is to:
+# Install dependencies
+go mod tidy
 
-- Assess your understanding of OSINT risks and mitigation strategies.
-- Test your ability to communicate effectively and explain security measures related to this project.
-- Challenge you to think critically about the importance of information security and consider alternative approaches.
-- Explain what subdomain takeovers are and how to protect against them.
+# Build the tool
+go build -o osintmaster cmd/osintmaster/main.go
 
-Prepare for a role-play question session during the audit.
+# Or run directly without building
+go run cmd/osintmaster/main.go --help
+```
 
-### Development Environment
+## Configuration
 
-**Virtual Machine Recommendation:**
+### Optional: AbuseIPDB API Key
 
-For security and isolation purposes, it is **strongly recommended** to develop and test this tool in a virtual machine (VM):
+For enhanced IP abuse checking, set your API key:
 
-- **Why use a VM:**
-  - Isolates OSINT activities from your personal system
-  - Protects API keys and sensitive credentials
-  - Provides a clean testing environment
-  - Allows safe interaction with potentially risky domains/IPs
-  - Facilitates network traffic monitoring and analysis
+```bash
+export ABUSEIPDB_API_KEY="your_api_key_here"
+```
 
-- **Recommended Setup:**
-  - Linux-based VM (Ubuntu 20.04+ or Kali Linux)
-  - Minimum 2GB RAM, 20GB disk space
-  - Network adapter configured for NAT or Bridged mode
-  - Snapshot capability for easy rollback
+Free tier: 1,000 checks per day. The tool works without this, but won't show abuse confidence scores.
 
-- **VM Software Options:**
-  - VirtualBox (free, cross-platform)
-  - VMware Workstation Player (free for personal use)
-  - QEMU/KVM (Linux hosts)
+## Usage
 
-### Project Requirements
+### Help
 
-#### Input Handling
+```bash
+./osintmaster --help
+```
 
-The tool should accept the following inputs: `IP Address`, `Username`, and `Domain`.
-
-#### Information Retrieval
-
-- **IP Address:**
-  Retrieve geolocation data, ISP details, and check for any historical data associated with the IP (e.g., from abuse databases).
-
-- **Username:**
-  Check for the presence of the username on at least five known social networks and public repositories.
-  Retrieve public profile information, such as profile bio, activity status, and follower count.
-
-- **Domain and Subdomain Enumeration:**
-  Enumerate subdomains and gather information including IP addresses, SSL certificate details, and potential vulnerabilities.
-  Identify potential subdomain takeover risks by analyzing DNS records and associated resources.
-
-> You are responsible for choosing the data sources and APIs you want to use. Be aware of each API's `Terms of Use` and `Cost` before use. Using APIs and external data sources is expected, but simply wrapping an existing OSINT CLI tool (such as `theHarvester`, `Sherlock`, or `subfinder`) without implementing your own logic is not acceptable.
-
-#### Output Management
-
-Store the results in a well-organized file format.
-
-### Usage Examples
-
-#### Command Line Interface
-
-```sh
-$> osintmaster --help
-
+Output:
+```
 Welcome to osintmaster multi-function Tool
 
 OPTIONS:
     -i  "IP Address"       Search information by IP address
     -u  "Username"         Search information by username
     -d  "Domain"           Enumerate subdomains and check for takeover risks
+    -n  "Full Name"        Search information by full name (bonus)
     -o  "FileName"         File name to save output
     --help                 Display this help message
 ```
 
-#### Example Outputs
+### IP Address Lookup
 
-**IP Address:**
+```bash
+./osintmaster -i 8.8.8.8 -o result.txt
+```
 
-```sh
-$> osintmaster -i 8.8.8.8 -o result1.txt
+**Example Output:**
+```
 ISP: Google LLC
 City: Mountain View
-Country: COUNTRY
-ASN: 15169
+Country: United States
+ASN: AS15169 Google LLC
+Lat/Lon: 37.3860 / -122.0838
 Known Issues: No reported abuse
-Data saved in result1.txt
+
+Data saved in result.txt
 ```
 
-**Username:**
+**Data Sources:**
+- ip-api.com (free, no API key): Geolocation, ISP, ASN
+- AbuseIPDB (optional): Abuse confidence score and report count
 
-```sh
-$> osintmaster -u "@username" -o result2.txt
-Facebook: Found
-Twitter: Found
-LinkedIn: Found
+### Username Search
+
+```bash
+./osintmaster -u torvalds -o result.txt
+```
+
+**Example Output:**
+```
+Facebook: Not Found
+Twitter: Found (2.5M followers)
+  Bio: Creator of Linux...
 Instagram: Not Found
-GitHub: Found
-Recent Activity: Active on GitHub, last post 1 day ago
-Data saved in result2.txt
+Tiktok: Not Found
+Github: Found (100k+ followers)
+  Bio: Linux creator
+  Recent Activity:
+    - Repository: linux (2024-03-15)
+    - Repository: git (2024-03-10)
+
+Recent Activity: Active on: twitter, github
+Last Post: Repository: linux on GitHub (2024-03-15)
+
+Data saved in result.txt
 ```
 
-**Domain and Subdomain Enumeration:**
+**Platforms Checked:**
+1. GitHub - Public repositories, bio, followers
+2. Twitter/X - Bio, followers, recent tweets
+3. Instagram - Bio, followers, recent posts
+4. TikTok - Bio, followers, recent videos
+5. Facebook - Basic profile info (limited due to privacy restrictions)
 
-```sh
-$> osintmaster -d "example.com" -o result3.txt
+**Note:** Social media platforms frequently change their anti-scraping measures. Some platforms may require login or show rate limits.
+
+### Domain Enumeration
+
+```bash
+./osintmaster -d example.com -o result.txt
+```
+
+**Example Output:**
+```
 Main Domain: example.com
 
 Subdomains found: 3
-  - www.example.com (IP: 123.123.123.123)
-    SSL Certificate: Valid until 2030-03-01
-  - mail.example.com (IP: 123.123.123.123)
-    SSL Certificate: Valid until 2030-03-01
-  - test.example.com (IP: 123.123.123.123)
-    SSL Certificate: Not found
+  - example.com (IP: 93.184.216.34)
+    SSL Certificate: Valid until 2025-12-01
+  - www.example.com (IP: 93.184.216.34)
+    SSL Certificate: Valid until 2025-12-01
+  - mail.example.com (IP: 93.184.216.35)
+    SSL Certificate: Valid until 2025-12-01
 
-Potential Subdomain Takeover Risks:
-  - Subdomain: test.example.com
-    CNAME record points to a non-existent AWS S3 bucket
-    Recommended Action: Remove or update the DNS record to prevent potential misuse
+Potential Subdomain Takeover Risks: None detected
 
-Data saved in result3.txt
+Data saved in result.txt
 ```
 
-### Bonus
+**Features:**
+- Subdomain enumeration via Certificate Transparency logs (crt.sh)
+- DNS resolution for each subdomain
+- SSL certificate validation and expiry dates
+- Subdomain takeover detection (dangling CNAMEs to cloud services)
 
-If you complete the mandatory part successfully and still have free time, you can implement anything that you feel deserves to be a bonus. For example:
+**Detected Takeover Services:**
+- AWS S3, CloudFront
+- GitHub Pages
+- Heroku
+- Azure (Websites, Blob Storage)
+- Vercel, Netlify, Cloudflare Pages
+- And more...
 
-- **Full Name Search:** Add a `-n` option to search information by full name, including phone numbers, addresses, and social media profiles.
-- **User Interface:** Develop a graphical user interface (GUI) for better user accessibility.
-- **PDF Generation:** Add a feature to generate your OSINT results as PDF files.
+### Full Name Search (Bonus)
 
-Challenge yourself!
+```bash
+./osintmaster -n "John Doe" -o result.txt
+```
 
-### Documentation
+Currently returns parsed first/last name. Extensible for future data source integration.
 
-Create a `README.md` file that provides comprehensive documentation for your tool (prerequisites, setup, configuration, usage, etc.). This file must be submitted as part of the solution for the project.
+## Output Format
 
-Add clear guidelines and warnings about the ethical and legal use of the tool to your documentation.
+Results are saved in plain text format with:
+- Timestamp
+- Query type and input
+- Structured results per feature
+- Data sources used
+- Warnings (if any)
 
-### Ethical and Legal Considerations
+Files are saved as `result.txt`, `result2.txt`, etc., or custom filename via `-o` flag.
 
-- **Get Permission:** Always obtain explicit permission before gathering information.
-- **Respect Privacy:** Collect only necessary data and store it securely.
-- **Follow Laws:** Adhere to relevant laws such as GDPR and CFAA.
-- **Report Responsibly:** Privately notify affected parties of any vulnerabilities.
-- **Educational Use Only:** Use this tool and techniques solely for learning and improving security.
-
-> **Disclaimer:** This project is for educational purposes only. Ensure all activities comply with legal and ethical standards. The institution is not responsible for misuse of the techniques and tools demonstrated.
-
-### Repository Structure
-
-Your repository should be organized as follows:
+## Architecture
 
 ```
-osint-master/
-├── src/
-│   ├── ip_lookup.py (or your language equivalent)
-│   ├── username_lookup.py
-│   ├── domain_enum.py
-│   └── main.py (or osintmaster entry point)
-├── tests/
-│   └── test_*.py (optional test files)
-├── output/
-│   └── (directory for storing results)
+osint/
+├── cmd/osintmaster/
+│   └── main.go              # Entry point
+├── internal/
+│   ├── cli/
+│   │   ├── flags.go         # Command-line parsing
+│   │   └── printer.go       # Terminal output
+│   ├── core/
+│   │   └── models.go        # Data structures
+│   ├── services/
+│   │   ├── domain/          # Domain enumeration
+│   │   ├── ip/              # IP geolocation & abuse
+│   │   ├── username/        # Social media checks
+│   │   └── fullname/        # Full name parsing
+│   └── output/
+│       └── writer.go        # File output
 ├── resources/
 │   └── osint-meme.png
-├── README.md
-├── requirements.txt (or equivalent for your language)
-└── .gitignore
+├── go.mod
+└── README.md
 ```
 
-**Note:** The exact structure may vary depending on your programming language and implementation approach, but ensure that:
+## API Usage & Rate Limits
 
-- Source code is well-organized in appropriate directories
-- All necessary files for running the tool are included
-- The project structure is clearly documented in the README.md
+| Service | Type | Limits | Auth Required |
+|---------|------|--------|---------------|
+| ip-api.com | IP Geolocation | 45 requests/minute | No |
+| AbuseIPDB | IP Reputation | 1,000/day | Optional (free tier) |
+| crt.sh | Subdomain Enum | No limit | No |
+| GitHub API | Profile/Repos | 60/hour (unauthenticated) | No |
+| Social Media | Profile Check | Varies | No |
 
-### Submission Requirements
+**Rate Limit Handling:**
+- The tool implements timeouts and backoff strategies
+- Warnings are displayed if rate limits are hit
+- Results are cached where possible to minimize requests
 
-For the audit, you must submit a complete repository containing:
+## Ethical and Legal Guidelines
 
-1. **README.md**: Comprehensive documentation including:
-   - Project overview and objectives
-   - Prerequisites and dependencies
-   - Installation and setup instructions
-   - Usage examples for each feature
-   - Command-line options and parameters
-   - Output format explanations
-   - API configuration (if applicable)
-   - Ethical and legal guidelines
-   - Troubleshooting tips
-   - Known limitations
+### Responsible Use
 
-2. **Source Code**: Well-organized and commented code for all features:
-   - IP Address lookup
-   - Username search
-   - Domain and subdomain enumeration
+1. **Get Permission**: Always obtain explicit permission before gathering information about individuals or organizations.
 
-3. **Configuration Files**: Any necessary configuration files (e.g., `requirements.txt`, `package.json`, `Makefile`, `Cargo.toml`)
+2. **Respect Privacy**: Collect only necessary data and store it securely. Do not share or publish personal information.
 
-4. **Output Directory**: Pre-created directory structure for storing results
+3. **Follow Laws**: Adhere to relevant laws such as:
+   - GDPR (EU)
+   - CFAA (US)
+   - Local privacy and data protection regulations
 
-**Important Notes:**
+4. **Report Responsibly**: If you discover vulnerabilities (e.g., subdomain takeovers), privately notify the affected parties.
 
-- All code must be your own work (implementing your own logic)
-- Simply wrapping existing OSINT CLI tools is not acceptable
-- Code should be well-commented and follow best practices for your chosen language
-- Include error handling and input validation
-- Document API usage and any rate limits
+5. **Educational Use**: This tool is for learning and authorized security testing only.
 
-### Submission and Audit
+### What NOT to Do
 
-Upon completing this project, you should be prepared to:
+- Do not use this tool for stalking, harassment, or doxxing
+- Do not attempt to claim resources during subdomain takeover checks (passive detection only)
+- Do not circumvent rate limits or terms of service
+- Do not store or distribute personal data without consent
 
-- Demonstrate all features working correctly
-- Explain your implementation decisions and code architecture
-- Describe your API integration approach
-- Participate in a role-play session as a Cyber Security Expert
-- Discuss ethical and legal considerations of OSINT
-- Show understanding of the underlying concepts and techniques
-- Explain subdomain takeover risks and mitigation strategies
+## Troubleshooting
 
-The audit will verify that:
+### Common Issues
 
-- All required files are present and properly organized
-- Tool is implemented with custom logic, not just wrapping existing tools
-- Documentation is comprehensive and accurate
-- You can effectively communicate your knowledge and decisions
-- You understand ethical considerations and privacy concerns
+**"No result" or timeouts**
+- Check internet connection
+- Some services may be rate-limited; wait a few minutes
+- Try with a VPN if your IP is blocked
+
+**TikTok/Instagram always returns "Not Found"**
+- These platforms aggressively block automated requests
+- Try different usernames or wait between requests
+- Consider using residential proxies (not included in this tool)
+
+**AbuseIPDB shows "No API key"**
+- Set `export ABUSEIPDB_API_KEY="your_key"`
+- Or ignore - the tool works without it, just without abuse scores
+
+**SSL certificate errors**
+- Some sites use self-signed certificates; these are noted as "Not found"
+
+## Known Limitations
+
+1. **Social Media Blocking**: Platforms like Instagram, TikTok, and Facebook frequently change their anti-bot measures and may block requests or require login.
+
+2. **Rate Limiting**: Unauthenticated GitHub API requests are limited to 60/hour.
+
+3. **IP Geolocation Accuracy**: IP geolocation is approximate (city-level accuracy varies by ISP).
+
+4. **Subdomain Takeover Verification**: Detection is passive (DNS-based). Actual vulnerability verification would require attempting to claim resources, which this tool does NOT do.
+
+5. **Full Name Search**: Currently basic; comprehensive people search requires paid APIs or databases.
+
+## Development
+
+### Testing
+
+```bash
+# Run all tests
+go test ./...
+
+# Test specific module
+go test ./internal/services/ip/
+```
+
+### Adding New Features
+
+The modular architecture makes it easy to add:
+- New social networks in `internal/services/username/networks.go`
+- New IP providers in `internal/services/ip/providers.go`
+- New subdomain sources in `internal/services/domain/`
+
+## License
+
+This project is for educational purposes. Use responsibly and ethically.
+
+## Author
+
+[Fahd Aguenouz]
+
+---
+
+**Disclaimer**: The authors are not responsible for misuse of this tool. Always ensure you have proper authorization before conducting OSINT investigations.
+```
+
+---
+
+After creating the README, the remaining steps are:
+
+1. **Create `go.mod`** if not exists - ensure it has proper module name
+2. **Add `resources/osint-meme.png`** - copy any relevant OSINT meme image
+3. **Create `.gitignore`**:
+```gitignore
+*.txt
+result*
+!resources/*.txt
+osintmaster
+*.exe
+.env
+```
+
+4. **Final testing** of all features:
+```bash
+./osintmaster --help
+./osintmaster -i 8.8.8.8 -o ip_test.txt
+./osintmaster -u torvalds -o user_test.txt
+./osintmaster -d github.com -o domain_test.txt
+```
+
+

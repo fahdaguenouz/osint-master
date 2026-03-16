@@ -6,25 +6,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"osint/internal/core"
 	"regexp"
 	"strings"
 	"time"
-
-	"osint/internal/core"
 )
 
 func checkProfileWithActivity(ctx context.Context, client *http.Client, networkName, url, handle string) (found bool, profileInfo, followers, lastActive string, posts []core.Post, warning string) {
+	// Special early handling for TikTok - use OEmbed API
+	if networkName == "tiktok" {
+		return checkTikTokWithOEmbed(ctx, client, handle)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false, "", "", "", nil, networkName + ": request build failed"
 	}
 
-	// Rotate user agents
-	userAgents := []string{
-		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-	}
-	req.Header.Set("User-Agent", userAgents[0])
+	// Standard headers for other platforms
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
@@ -50,7 +50,6 @@ func checkProfileWithActivity(ctx context.Context, client *http.Client, networkN
 			return false, "", "", "", nil, networkName + ": login required"
 		}
 		if networkName == "github" && strings.Contains(loc, "github.com/"+strings.ToLower(handle)) {
-			// GitHub canonical redirect - profile exists, fetch with trailing slash
 			return fetchGitHubWithRepos(ctx, client, handle)
 		}
 		return false, "", "", "", nil, networkName + ": redirected"
@@ -75,8 +74,6 @@ func checkProfileWithActivity(ctx context.Context, client *http.Client, networkN
 			return parseTwitterDetailed(text, html)
 		case "facebook":
 			return parseFacebookDetailed(text, html)
-		case "tiktok":
-			return parseTikTokDetailed(text, html)
 		}
 	}
 
@@ -104,11 +101,11 @@ func fetchGitHubWithRepos(ctx context.Context, client *http.Client, handle strin
 	}
 
 	var user struct {
-		Bio       string `json:"bio"`
-		Followers int    `json:"followers"`
-		PublicRepos int `json:"public_repos"`
-		UpdatedAt string `json:"updated_at"`
-		CreatedAt string `json:"created_at"`
+		Bio         string `json:"bio"`
+		Followers   int    `json:"followers"`
+		PublicRepos int    `json:"public_repos"`
+		UpdatedAt   string `json:"updated_at"`
+		CreatedAt   string `json:"created_at"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		return false, "", "", "", nil, ""
@@ -118,7 +115,7 @@ func fetchGitHubWithRepos(ctx context.Context, client *http.Client, handle strin
 	reposURL := fmt.Sprintf("https://api.github.com/users/%s/repos?sort=updated&per_page=4", handle)
 	req2, _ := http.NewRequestWithContext(ctx, http.MethodGet, reposURL, nil)
 	req2.Header.Set("User-Agent", "osintmaster/1.0")
-	
+
 	resp2, err := client.Do(req2)
 	if err != nil {
 		// Return basic profile even if repos fail
@@ -158,7 +155,6 @@ func fetchGitHubWithRepos(ctx context.Context, client *http.Client, handle strin
 }
 
 // parseGitHubWithRepos uses HTML parsing as fallback
-// parseGitHubWithRepos uses HTML parsing as fallback
 func parseGitHubWithRepos(text, html, handle string, client *http.Client) (bool, string, string, string, []core.Post, string) {
 	if strings.Contains(html, "page not found") || strings.Contains(html, "404") {
 		return false, "", "", "", nil, ""
@@ -167,7 +163,7 @@ func parseGitHubWithRepos(text, html, handle string, client *http.Client) (bool,
 	// Try API first for better data
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	// Quick API check
 	apiFound, bio, followers, lastActive, posts, _ := fetchGitHubWithRepos(ctx, client, handle)
 	if apiFound && len(posts) > 0 {
@@ -202,49 +198,43 @@ func parseGitHubWithRepos(text, html, handle string, client *http.Client) (bool,
 
 	return true, cleanJSONString(bio), cleanJSONString(followers), "", htmlPosts, ""
 }
+
 // parseInstagramDetailed extracts bio, followers, and last post date
 func parseInstagramDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
-	// Not found check
-	if strings.Contains(html, "page not found") || 
-	   strings.Contains(html, "sorry, this page isn't available") ||
-	   strings.Contains(html, "the link you followed may be broken") ||
-	   strings.Contains(html, "content unavailable") {
+	if strings.Contains(html, "page not found") {
 		return false, "", "", "", nil, ""
 	}
-
-	// Login wall check
-	if (strings.Contains(html, "log in") || strings.Contains(html, "login")) && 
-	   (strings.Contains(html, "sign up") || strings.Contains(html, "signup")) {
+	if strings.Contains(html, "login") && strings.Contains(html, "sign up") {
 		return false, "", "", "", nil, "instagram: login wall"
 	}
 
-	// Extract bio from sharedData or meta
-	bio := extractField(text, `"biography":`, `,`)
-	if bio == "" {
-		bio = extractBetween(text, `<meta property="og:description" content="`, `"`, 300)
-		// Remove "X (@handle) • Instagram photos and videos" prefix
-		if idx := strings.Index(bio, "•"); idx != -1 {
-			bio = strings.TrimSpace(bio[idx+1:])
-		}
+	// 1. Check if Private
+	isPrivate := extractField(text, `"is_private":`, `,`)
+	if isPrivate == "true" {
+		return true, "Account is private", "Hidden", "", nil, "Private Profile"
 	}
 
-	// Extract followers
+	// 2. Extract Bio
+	bio := extractBetween(text, `<meta property="og:description" content="`, `"`, 300)
+	if idx := strings.Index(bio, "•"); idx != -1 {
+		bio = strings.TrimSpace(bio[idx+1:]) // Clean up the prefix
+	}
+
+	// 3. Extract Followers
 	followers := extractField(text, `"edge_followed_by":{"count":`, `}`)
-	if followers == "" {
-		followers = extractField(text, `"followers_count":`, `,`)
-	}
 
-	// Extract recent post dates (up to 3)
+	// 4. Extract Recent Posts
 	var posts []core.Post
+	// Look inside the edge_owner_to_timeline_media object
 	postDates := extractAllMatches(text, `"taken_at_timestamp":(\d+)`)
+
 	for i, ts := range postDates {
 		if i >= 3 {
 			break
 		}
-		date := unixToDate(ts)
 		posts = append(posts, core.Post{
-			Content:  fmt.Sprintf("Post %d", i+1),
-			Date:     date,
+			Content:  fmt.Sprintf("IG Post %d", i+1),
+			Date:     unixToDate(ts),
 			Platform: "Instagram",
 		})
 	}
@@ -259,40 +249,37 @@ func parseInstagramDetailed(text, html string) (bool, string, string, string, []
 
 // parseTwitterDetailed extracts bio, followers, recent tweets
 func parseTwitterDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
-	if strings.Contains(html, "this account doesn’t exist") ||
-	   strings.Contains(html, "this account doesn't exist") ||
-	   strings.Contains(html, "account suspended") ||
-	   strings.Contains(html, "page not found") {
+	// The syndication API returns a 404 if the user doesn't exist
+	if strings.Contains(html, "User not found") {
 		return false, "", "", "", nil, ""
 	}
 
-	if strings.Contains(html, "sign in to x") || 
-	   (strings.Contains(html, "log in") && strings.Contains(html, "x.com")) {
-		return false, "", "", "", nil, "twitter: login required"
-	}
+	// 1. Extract Bio (from the embedded JSON data)
+	bio := extractBetween(text, `"description":"`, `"`, 300)
 
-	// Extract bio
-	bio := extractBetween(text, `<meta property="og:description" content="`, `"`, 300)
-	if bio == "" {
-		bio = extractField(text, `"description":`, `,`)
-	}
-
-	// Extract followers
+	// 2. Extract Followers
 	followers := extractField(text, `"followers_count":`, `,`)
-	if followers == "" {
-		followers = extractField(text, `"followersCount":`, `,`)
-	}
 
-	// Extract recent tweet dates
+	// 3. Extract Recent Tweets from the syndication timeline
 	var posts []core.Post
+	// The syndication API exposes tweet text and created_at nicely
 	tweetDates := extractAllMatches(text, `"created_at":"([^"]+)"`)
-	for i, date := range tweetDates {
+	tweetTexts := extractAllMatches(text, `"text":"([^"]+)"`)
+
+	for i := 0; i < len(tweetDates) && i < len(tweetTexts); i++ {
 		if i >= 3 {
 			break
 		}
+
+		// Clean up the tweet text slightly
+		content := cleanJSONString(tweetTexts[i])
+		if len(content) > 50 {
+			content = content[:47] + "..."
+		}
+
 		posts = append(posts, core.Post{
-			Content:  fmt.Sprintf("Tweet %d", i+1),
-			Date:     parseTwitterDate(date),
+			Content:  content,
+			Date:     parseTwitterDate(tweetDates[i]),
 			Platform: "Twitter",
 		})
 	}
@@ -304,25 +291,25 @@ func parseTwitterDetailed(text, html string) (bool, string, string, string, []co
 func parseFacebookDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
 	// Not available check
 	if strings.Contains(html, "this page isn't available") ||
-	   strings.Contains(html, "page may have been removed") ||
-	   strings.Contains(html, "content isn't available") ||
-	   strings.Contains(html, "page not found") {
+		strings.Contains(html, "page may have been removed") ||
+		strings.Contains(html, "content isn't available") ||
+		strings.Contains(html, "page not found") {
 		return false, "", "", "", nil, ""
 	}
 
 	// Login check
 	if strings.Contains(html, "log into facebook") ||
-	   strings.Contains(html, "log in to continue") ||
-	   strings.Contains(html, "login required") {
+		strings.Contains(html, "log in to continue") ||
+		strings.Contains(html, "login required") {
 		return false, "", "", "", nil, "facebook: login required"
 	}
 
 	// Try to extract basic info from meta
 	bio := extractBetween(text, `<meta name="description" content="`, `"`, 300)
-	
+
 	// Try to find any public posts (rare without login)
 	var posts []core.Post
-	
+
 	// Look for post timestamps in the HTML (very rare to work)
 	postMatches := extractAllMatches(text, `data-utime="(\d+)"`)
 	for i, ts := range postMatches {
@@ -337,94 +324,6 @@ func parseFacebookDetailed(text, html string) (bool, string, string, string, []c
 	}
 
 	return true, cleanJSONString(bio), "", "", posts, ""
-}
-
-// parseTikTokDetailed with improved detection
-func parseTikTokDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
-	// Multiple "not found" patterns
-	notFoundPatterns := []string{
-		"couldn't find this account",
-		"couldn&#39;t find this account",
-		"couldn’t find this account",
-		"page not available",
-		"content not available",
-		"user not found",
-		"account not found",
-	}
-
-	for _, pattern := range notFoundPatterns {
-		if strings.Contains(html, pattern) {
-			return false, "", "", "", nil, ""
-		}
-	}
-
-	// Check for verification/captcha walls
-	if strings.Contains(html, "/captcha") ||
-	   strings.Contains(html, "recaptcha") ||
-	   strings.Contains(html, "verify to continue") ||
-	   strings.Contains(html, "security verification") ||
-	   strings.Contains(html, "verify you're a human") {
-		return false, "", "", "", nil, "tiktok: verification required"
-	}
-
-	// Check for login wall
-	if (strings.Contains(html, "log in") || strings.Contains(html, "login")) &&
-	   (strings.Contains(html, "sign up") || strings.Contains(html, "for you")) {
-		// This might be a login wall, but let's check if we have profile data anyway
-		// Sometimes TikTok shows some data even with login prompt
-	}
-
-	// Extract signature/bio - try multiple patterns
-	bio := extractField(text, `"signature":`, `,`)
-	if bio == "" {
-		bio = extractField(text, `"desc":`, `,`)
-	}
-	if bio == "" {
-		bio = extractBetween(text, `<h2 class="share-desc">`, `</h2>`, 200)
-	}
-	if bio == "" {
-		// Try meta description
-		bio = extractBetween(text, `<meta property="og:description" content="`, `"`, 300)
-	}
-
-	// Extract followers - try multiple patterns
-	followers := extractField(text, `"followerCount":`, `,`)
-	if followers == "" {
-		followers = extractField(text, `"fans":`, `,`)
-	}
-	if followers == "" {
-		followers = extractField(text, `"stats":{"followerCount":`, `}`)
-	}
-
-	// Extract recent video dates (up to 4)
-	var posts []core.Post
-	videoDates := extractAllMatches(text, `"createTime":"(\d+)"`)
-	if len(videoDates) == 0 {
-		videoDates = extractAllMatches(text, `"createTime":(\d+)`)
-	}
-	
-	for i, ts := range videoDates {
-		if i >= 4 {
-			break
-		}
-		posts = append(posts, core.Post{
-			Content:  fmt.Sprintf("Video %d", i+1),
-			Date:     unixToDate(ts),
-			Platform: "TikTok",
-		})
-	}
-
-	// If we found videos or bio, consider it found
-	if len(posts) > 0 || bio != "" || followers != "" {
-		return true, cleanJSONString(bio), cleanJSONString(followers), "", posts, ""
-	}
-
-	// If we see typical TikTok profile HTML structure but no data, might be rate limited
-	if strings.Contains(html, "tiktok") && strings.Contains(html, "user") {
-		return false, "", "", "", nil, "tiktok: rate limited or data restricted"
-	}
-
-	return false, "", "", "", nil, ""
 }
 
 // Helper functions

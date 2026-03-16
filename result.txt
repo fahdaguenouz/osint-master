@@ -3,7 +3,7 @@ OSINT-Master Report
 
 Query: yoofahdagchill
 Type: username
-Timestamp: 2026-03-16T14:38:59Z
+Timestamp: 2026-03-16T15:58:54Z
 
 Warnings:
   - facebook: unexpected status 400
@@ -11,10 +11,11 @@ Warnings:
 Facebook: Not Found
 Twitter: Found
 Instagram: Found
-Tiktok: Not Found
+Tiktok: Found
+  Bio: Author: yoofahdagchill
 Github: Not Found
 
-Recent Activity: Active on: twitter, instagram
+Recent Activity: Active on: twitter, instagram, tiktok
 
 Sources: direct HTTP check + HTML fingerprint
 
