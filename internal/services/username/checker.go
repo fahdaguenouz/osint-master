@@ -2,7 +2,6 @@ package username
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -61,7 +60,7 @@ func checkProfileWithActivity(ctx context.Context, client *http.Client, networkN
 
 	if code == 200 {
 		// Read larger snippet for better parsing
-		snippet, _ := readSnippet(resp.Body, 512*1024)
+		snippet, _ := readSnippet(resp.Body, 2*1024*1024)
 		html := strings.ToLower(snippet)
 		text := snippet
 
@@ -80,250 +79,81 @@ func checkProfileWithActivity(ctx context.Context, client *http.Client, networkN
 	return false, "", "", "", nil, networkName + ": unexpected status " + fmt.Sprintf("%d", code)
 }
 
-// fetchGitHubWithRepos fetches profile + public repos via GitHub API (no auth needed for public)
-func fetchGitHubWithRepos(ctx context.Context, client *http.Client, handle string) (bool, string, string, string, []core.Post, string) {
-	// First fetch user profile
-	profileURL := fmt.Sprintf("https://api.github.com/users/%s", handle)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, profileURL, nil)
-	if err != nil {
-		return false, "", "", "", nil, ""
-	}
-	req.Header.Set("User-Agent", "osintmaster/1.0")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, "", "", "", nil, ""
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return false, "", "", "", nil, ""
-	}
-
-	var user struct {
-		Bio         string `json:"bio"`
-		Followers   int    `json:"followers"`
-		PublicRepos int    `json:"public_repos"`
-		UpdatedAt   string `json:"updated_at"`
-		CreatedAt   string `json:"created_at"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return false, "", "", "", nil, ""
-	}
-
-	// Fetch recent repos (up to 4)
-	reposURL := fmt.Sprintf("https://api.github.com/users/%s/repos?sort=updated&per_page=4", handle)
-	req2, _ := http.NewRequestWithContext(ctx, http.MethodGet, reposURL, nil)
-	req2.Header.Set("User-Agent", "osintmaster/1.0")
-
-	resp2, err := client.Do(req2)
-	if err != nil {
-		// Return basic profile even if repos fail
-		followersStr := fmt.Sprintf("%d", user.Followers)
-		return true, user.Bio, followersStr, user.UpdatedAt, nil, ""
-	}
-	defer resp2.Body.Close()
-
-	var repos []struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		UpdatedAt   string `json:"updated_at"`
-		Language    string `json:"language"`
-	}
-	json.NewDecoder(resp2.Body).Decode(&repos)
-
-	// Build posts from repos
-	var posts []core.Post
-	for _, repo := range repos {
-		desc := repo.Description
-		if desc == "" {
-			desc = "Repository: " + repo.Name
-		}
-		if len(desc) > 100 {
-			desc = desc[:97] + "..."
-		}
-		posts = append(posts, core.Post{
-			Content:  desc,
-			Date:     formatGitHubDate(repo.UpdatedAt),
-			Platform: "GitHub",
-			URL:      fmt.Sprintf("https://github.com/%s/%s", handle, repo.Name),
-		})
-	}
-
-	followersStr := fmt.Sprintf("%d", user.Followers)
-	return true, user.Bio, followersStr, formatGitHubDate(user.UpdatedAt), posts, ""
-}
-
-// parseGitHubWithRepos uses HTML parsing as fallback
-func parseGitHubWithRepos(text, html, handle string, client *http.Client) (bool, string, string, string, []core.Post, string) {
-	if strings.Contains(html, "page not found") || strings.Contains(html, "404") {
-		return false, "", "", "", nil, ""
-	}
-
-	// Try API first for better data
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Quick API check
-	apiFound, bio, followers, lastActive, posts, _ := fetchGitHubWithRepos(ctx, client, handle)
-	if apiFound && len(posts) > 0 {
-		return apiFound, bio, followers, lastActive, posts, ""
-	}
-
-	// Fallback to HTML parsing
-	bio = extractField(text, `"bio":`, `,`)
-	if bio == "" {
-		bio = extractBetween(text, `<div class="p-note user-profile-bio mb-3 js-user-profile-bio f4">`, `</div>`, 300)
-		bio = cleanHTML(bio)
-	}
-
-	followers = extractField(text, `"followers":`, `,`)
-	if followers == "" {
-		followers = extractField(text, `"followersCount":`, `,`)
-	}
-
-	// Look for repo names in HTML - FIX: use = not := to avoid redeclaration
-	var htmlPosts []core.Post
-	repoMatches := extractAllMatches(text, `<a href="/`+handle+`/([^"]+)" itemprop="name codeRepository"`)
-	for i, repo := range repoMatches {
-		if i >= 4 {
-			break
-		}
-		htmlPosts = append(htmlPosts, core.Post{
-			Content:  "Repository: " + repo,
-			Date:     "", // Unknown from HTML
-			Platform: "GitHub",
-		})
-	}
-
-	return true, cleanJSONString(bio), cleanJSONString(followers), "", htmlPosts, ""
-}
-
-// parseInstagramDetailed extracts bio, followers, and last post date
 func parseInstagramDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
+
 	if strings.Contains(html, "page not found") {
 		return false, "", "", "", nil, ""
 	}
-	if strings.Contains(html, "login") && strings.Contains(html, "sign up") {
+
+	// 🔥 better login wall detection
+	if strings.Contains(html, "login") ||
+		strings.Contains(html, "sign up") ||
+		strings.Contains(html, "accounts/login") {
 		return false, "", "", "", nil, "instagram: login wall"
 	}
 
-	// 1. Check if Private
-	isPrivate := extractField(text, `"is_private":`, `,`)
-	if isPrivate == "true" {
-		return true, "Account is private", "Hidden", "", nil, "Private Profile"
-	}
-
-	// 2. Extract Bio
-	bio := extractBetween(text, `<meta property="og:description" content="`, `"`, 300)
-	if idx := strings.Index(bio, "•"); idx != -1 {
-		bio = strings.TrimSpace(bio[idx+1:]) // Clean up the prefix
-	}
-
-	// 3. Extract Followers
-	followers := extractField(text, `"edge_followed_by":{"count":`, `}`)
-
-	// 4. Extract Recent Posts
+	var bio string
+	var followers string
 	var posts []core.Post
-	// Look inside the edge_owner_to_timeline_media object
+	var lastActive string
+
+	// ✅ NEW: try multiple patterns (Instagram changed structure)
+
+	// BIO
+	bioPatterns := []string{
+		`"biography":"([^"]*)"`,
+		`"bio":"([^"]*)"`,
+	}
+
+	for _, p := range bioPatterns {
+		match := extractAllMatches(text, p)
+		if len(match) > 0 {
+			bio = cleanJSONString(match[0])
+			break
+		}
+	}
+
+	// FOLLOWERS
+	followPatterns := []string{
+		`"edge_followed_by":\{"count":(\d+)`,
+		`"follower_count":(\d+)`,
+	}
+
+	for _, p := range followPatterns {
+		match := extractAllMatches(text, p)
+		if len(match) > 0 {
+			followers = match[0]
+			break
+		}
+	}
+
+	// POSTS
 	postDates := extractAllMatches(text, `"taken_at_timestamp":(\d+)`)
 
 	for i, ts := range postDates {
 		if i >= 3 {
 			break
 		}
+
+		date := unixToDate(ts)
+
 		posts = append(posts, core.Post{
-			Content:  fmt.Sprintf("IG Post %d", i+1),
-			Date:     unixToDate(ts),
+			Content:  fmt.Sprintf("Post %d", i+1),
+			Date:     date,
 			Platform: "Instagram",
 		})
-	}
 
-	lastActive := ""
-	if len(posts) > 0 {
-		lastActive = posts[0].Date
-	}
-
-	return true, cleanJSONString(bio), cleanJSONString(followers), lastActive, posts, ""
-}
-
-// parseTwitterDetailed extracts bio, followers, recent tweets
-func parseTwitterDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
-	// The syndication API returns a 404 if the user doesn't exist
-	if strings.Contains(html, "User not found") {
-		return false, "", "", "", nil, ""
-	}
-
-	// 1. Extract Bio (from the embedded JSON data)
-	bio := extractBetween(text, `"description":"`, `"`, 300)
-
-	// 2. Extract Followers
-	followers := extractField(text, `"followers_count":`, `,`)
-
-	// 3. Extract Recent Tweets from the syndication timeline
-	var posts []core.Post
-	// The syndication API exposes tweet text and created_at nicely
-	tweetDates := extractAllMatches(text, `"created_at":"([^"]+)"`)
-	tweetTexts := extractAllMatches(text, `"text":"([^"]+)"`)
-
-	for i := 0; i < len(tweetDates) && i < len(tweetTexts); i++ {
-		if i >= 3 {
-			break
+		if i == 0 {
+			lastActive = date
 		}
-
-		// Clean up the tweet text slightly
-		content := cleanJSONString(tweetTexts[i])
-		if len(content) > 50 {
-			content = content[:47] + "..."
-		}
-
-		posts = append(posts, core.Post{
-			Content:  content,
-			Date:     parseTwitterDate(tweetDates[i]),
-			Platform: "Twitter",
-		})
 	}
 
-	return true, cleanJSONString(bio), cleanJSONString(followers), "", posts, ""
-}
-
-// parseFacebookDetailed tries to extract basic info
-func parseFacebookDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
-	// Not available check
-	if strings.Contains(html, "this page isn't available") ||
-		strings.Contains(html, "page may have been removed") ||
-		strings.Contains(html, "content isn't available") ||
-		strings.Contains(html, "page not found") {
-		return false, "", "", "", nil, ""
+	// PRIVATE ACCOUNT
+	if strings.Contains(text, `"is_private":true`) {
+		return true, "Private account", "Hidden", "", nil, "Private Profile"
 	}
 
-	// Login check
-	if strings.Contains(html, "log into facebook") ||
-		strings.Contains(html, "log in to continue") ||
-		strings.Contains(html, "login required") {
-		return false, "", "", "", nil, "facebook: login required"
-	}
-
-	// Try to extract basic info from meta
-	bio := extractBetween(text, `<meta name="description" content="`, `"`, 300)
-
-	// Try to find any public posts (rare without login)
-	var posts []core.Post
-
-	// Look for post timestamps in the HTML (very rare to work)
-	postMatches := extractAllMatches(text, `data-utime="(\d+)"`)
-	for i, ts := range postMatches {
-		if i >= 2 {
-			break
-		}
-		posts = append(posts, core.Post{
-			Content:  "Public post",
-			Date:     unixToDate(ts),
-			Platform: "Facebook",
-		})
-	}
-
-	return true, cleanJSONString(bio), "", "", posts, ""
+	return true, bio, followers, lastActive, posts, ""
 }
 
 // Helper functions

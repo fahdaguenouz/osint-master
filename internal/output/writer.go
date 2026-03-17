@@ -182,15 +182,7 @@ func formatForFile(r core.Result) string {
 			b.WriteString("\n")
 		}
 
-	case core.KindFullName:
-		b.WriteString(fmt.Sprintf("First name: %s\n", r.FullName.FirstName))
-		b.WriteString(fmt.Sprintf("Last name: %s\n", r.FullName.LastName))
-		if r.FullName.Address != "" {
-			b.WriteString(fmt.Sprintf("Address: %s\n", r.FullName.Address))
-		}
-		if r.FullName.Phone != "" {
-			b.WriteString(fmt.Sprintf("Number: %s\n", r.FullName.Phone))
-		}
+	
 	}
 
 	// Sources used

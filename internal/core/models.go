@@ -19,17 +19,9 @@ type Result struct {
 	Warnings  []string
 	Error     string
 
-	FullName FullNameResult
 	IP       IPResult
 	Username UsernameResult
 	Domain   DomainResult
-}
-
-type FullNameResult struct {
-	FirstName string
-	LastName  string
-	Address   string
-	Phone     string
 }
 
 type IPResult struct {
