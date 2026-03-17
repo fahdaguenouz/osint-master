@@ -62,7 +62,11 @@ func PrintResult(w io.Writer, r core.Result) {
 			fmt.Fprintln(w)
 
 			if n.ProfileInfo != "" {
-				fmt.Fprintf(w, "  Bio: %s\n", n.ProfileInfo)
+				if n.Name == "tiktok" {
+					fmt.Fprintf(w, "  Author: %s\n", n.ProfileInfo)
+				} else {
+					fmt.Fprintf(w, "  Bio: %s\n", n.ProfileInfo)
+				}
 			}
 		}
 

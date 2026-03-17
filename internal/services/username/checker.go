@@ -16,11 +16,15 @@ func checkProfileWithActivity(ctx context.Context, client *http.Client, networkN
 	if networkName == "tiktok" {
 		return checkTikTokWithOEmbed(ctx, client, handle)
 	}
+	if networkName == "reddit" {
+	return checkRedditJSON(ctx, client, handle)
+}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false, "", "", "", nil, networkName + ": request build failed"
 	}
+	
 
 	// Standard headers for other platforms
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -28,6 +32,8 @@ func checkProfileWithActivity(ctx context.Context, client *http.Client, networkN
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
 	req.Header.Set("DNT", "1")
+
+	
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -45,6 +51,10 @@ func checkProfileWithActivity(ctx context.Context, client *http.Client, networkN
 
 	// Handle redirects
 	if code == 301 || code == 302 || code == 303 || code == 307 || code == 308 {
+		if networkName == "reddit" {
+		// Ignore redirect → use JSON API directly
+		return checkRedditJSON(ctx, client, handle)
+	}
 		if strings.Contains(loc, "login") || strings.Contains(loc, "signin") {
 			return false, "", "", "", nil, networkName + ": login required"
 		}
@@ -71,15 +81,13 @@ func checkProfileWithActivity(ctx context.Context, client *http.Client, networkN
 			return parseInstagramDetailed(text, html)
 		case "twitter":
 			return parseTwitterDetailed(text, html)
-		case "facebook":
-			return parseFacebookDetailed(text, html)
+		case "reddit":
+			return checkRedditJSON(ctx, client, handle)
 		}
 	}
 
 	return false, "", "", "", nil, networkName + ": unexpected status " + fmt.Sprintf("%d", code)
 }
-
-
 
 // Helper functions
 func extractField(text, start, end string) string {
