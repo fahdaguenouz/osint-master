@@ -40,9 +40,9 @@ func checkTikTokWithOEmbed(ctx context.Context, client *http.Client, handle stri
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || data.AuthorName == "" {
 		return checkTikTokDirect(ctx, client, handle)
 	}
-
+	
+	profileInfo :=  data.AuthorName
 	// Build profile info from author_name only
-	profileInfo := "Author: " + data.AuthorName
 
 	// Get followers and posts from profile page
 	followers, posts := fetchTikTokStats(ctx, client, handle)

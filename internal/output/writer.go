@@ -74,14 +74,14 @@ func formatForFile(r core.Result) string {
 	case core.KindDomain:
 		b.WriteString(fmt.Sprintf("Main Domain: %s\n\n", r.Input))
 		b.WriteString(fmt.Sprintf("Subdomains found: %d\n", len(r.Domain.Subdomains)))
-		
+
 		for _, sub := range r.Domain.Subdomains {
 			ip := sub.IP
 			if ip == "" {
 				ip = "unresolved"
 			}
 			b.WriteString(fmt.Sprintf("  - %s (IP: %s)\n", sub.Name, ip))
-			
+
 			if sub.SSLValid {
 				b.WriteString(fmt.Sprintf("    SSL Certificate: Valid until %s\n", sub.SSLExpiry))
 			} else {
@@ -96,7 +96,7 @@ func formatForFile(r core.Result) string {
 				riskySubs = append(riskySubs, sub)
 			}
 		}
-		
+
 		if len(riskySubs) > 0 {
 			b.WriteString("\nPotential Subdomain Takeover Risks:\n")
 			for _, sub := range riskySubs {
@@ -125,7 +125,7 @@ func formatForFile(r core.Result) string {
 		if r.IP.Lat != 0 || r.IP.Lon != 0 {
 			b.WriteString(fmt.Sprintf("Lat/Lon: %.4f / %.4f\n", r.IP.Lat, r.IP.Lon))
 		}
-		
+
 		// Abuse data / Known Issues
 		if r.IP.KnownIssues != "" {
 			b.WriteString(fmt.Sprintf("Known Issues: %s\n", r.IP.KnownIssues))
@@ -140,23 +140,27 @@ func formatForFile(r core.Result) string {
 			if n.Found {
 				val = "Found"
 			}
-			
+
 			name := n.Name
 			if len(name) > 0 {
 				name = strings.ToUpper(name[:1]) + name[1:]
 			}
-			
+
 			b.WriteString(fmt.Sprintf("%s: %s", name, val))
 			if n.Followers != "" {
 				b.WriteString(fmt.Sprintf(" (%s followers)", n.Followers))
 			}
 			b.WriteString("\n")
-			
+
 			// Profile bio
 			if n.ProfileInfo != "" {
-				b.WriteString(fmt.Sprintf("  Bio: %s\n", n.ProfileInfo))
+				if n.Name == "tiktok" {
+					b.WriteString(fmt.Sprintf(" Author: %s\n", n.ProfileInfo))
+				} else {
+					b.WriteString(fmt.Sprintf("  Bio: %s\n", n.ProfileInfo))
+				}
 			}
-			
+
 			// Recent posts/activity for this platform
 			if len(n.RecentPosts) > 0 {
 				b.WriteString(fmt.Sprintf("  Recent Activity:\n"))
@@ -169,10 +173,10 @@ func formatForFile(r core.Result) string {
 				}
 			}
 		}
-		
+
 		// Summary of recent activity across platforms
 		b.WriteString(fmt.Sprintf("\nRecent Activity: %s\n", r.Username.RecentActivity))
-		
+
 		// Most recent post across all platforms
 		if r.Username.LastPostPlatform != "" {
 			b.WriteString(fmt.Sprintf("Last Post: %s on %s", r.Username.LastPost, r.Username.LastPostPlatform))
@@ -182,7 +186,6 @@ func formatForFile(r core.Result) string {
 			b.WriteString("\n")
 		}
 
-	
 	}
 
 	// Sources used

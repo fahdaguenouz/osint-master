@@ -5,42 +5,72 @@ import (
 	"strings"
 )
 
-// parseTwitterDetailed extracts bio, followers, recent tweets
 func parseTwitterDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
-	// The syndication API returns a 404 if the user doesn't exist
-	if strings.Contains(html, "User not found") {
+
+	if strings.Contains(strings.ToLower(html), "page doesn’t exist") ||
+		strings.Contains(strings.ToLower(html), "account suspended") {
 		return false, "", "", "", nil, ""
 	}
 
-	// 1. Extract Bio (from the embedded JSON data)
-	bio := extractBetween(text, `"description":"`, `"`, 300)
-
-	// 2. Extract Followers
-	followers := extractField(text, `"followers_count":`, `,`)
-
-	// 3. Extract Recent Tweets from the syndication timeline
+	var bio string
+	var followers string
 	var posts []core.Post
-	// The syndication API exposes tweet text and created_at nicely
-	tweetDates := extractAllMatches(text, `"created_at":"([^"]+)"`)
-	tweetTexts := extractAllMatches(text, `"text":"([^"]+)"`)
+	var lastActive string
 
-	for i := 0; i < len(tweetDates) && i < len(tweetTexts); i++ {
+	// ✅ BIO (multiple fallback patterns)
+	bioPatterns := []string{
+		`"description":"([^"]+)"`,
+		`"bio":"([^"]+)"`,
+	}
+
+	for _, p := range bioPatterns {
+		match := extractAllMatches(text, p)
+		if len(match) > 0 {
+			bio = cleanJSONString(match[0])
+			break
+		}
+	}
+
+	// ✅ FOLLOWERS (try multiple formats)
+	followPatterns := []string{
+		`"followers_count":(\d+)`,
+		`"followers":\{"count":(\d+)`,
+	}
+
+	for _, p := range followPatterns {
+		match := extractAllMatches(text, p)
+		if len(match) > 0 {
+			followers = match[0]
+			break
+		}
+	}
+
+	// ✅ TWEETS
+	tweetTexts := extractAllMatches(text, `"text":"([^"]+)"`)
+	tweetDates := extractAllMatches(text, `"created_at":"([^"]+)"`)
+
+	for i := 0; i < len(tweetTexts) && i < len(tweetDates); i++ {
 		if i >= 3 {
 			break
 		}
 
-		// Clean up the tweet text slightly
 		content := cleanJSONString(tweetTexts[i])
-		if len(content) > 50 {
-			content = content[:47] + "..."
+		if len(content) > 60 {
+			content = content[:57] + "..."
 		}
+
+		date := parseTwitterDate(tweetDates[i])
 
 		posts = append(posts, core.Post{
 			Content:  content,
-			Date:     parseTwitterDate(tweetDates[i]),
+			Date:     date,
 			Platform: "Twitter",
 		})
+
+		if i == 0 {
+			lastActive = date
+		}
 	}
 
-	return true, cleanJSONString(bio), cleanJSONString(followers), "", posts, ""
+	return true, bio, followers, lastActive, posts, ""
 }

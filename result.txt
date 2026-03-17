@@ -3,7 +3,7 @@ OSINT-Master Report
 
 Query: fahdaguenouz
 Type: username
-Timestamp: 2026-03-17T16:39:09Z
+Timestamp: 2026-03-17T17:00:56Z
 
 Warnings:
   - facebook: unexpected status 400
@@ -12,7 +12,7 @@ Facebook: Not Found
 Twitter: Found
 Instagram: Found
 Tiktok: Found
-  Bio: Author: japan
+ Author: japan
 Github: Found (71 followers)
   Bio: const me = {
   name: "Fahd Aguenouz",
@@ -22,13 +22,13 @@ Github: Found (71 followers)
 };
 
   Recent Activity:
-    - Repository: osint (2026-03-16)
+    - Repository: osint (2026-03-17)
     - Repository: mr-jenk (2026-03-15)
     - Repository: pentest-kit (2026-03-14)
     - Repository: buy-01 (2026-03-13)
 
 Recent Activity: Active on: twitter, instagram, tiktok, github
-Last Post: Repository: osint on GitHub (2026-03-16)
+Last Post: Repository: osint on GitHub (2026-03-17)
 
 Sources: direct HTTP check + HTML fingerprint
 
