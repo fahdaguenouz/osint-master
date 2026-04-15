@@ -1,7 +1,6 @@
 package username
 
 import (
-	"fmt"
 	"osint/internal/core"
 	"regexp"
 	"strings"
@@ -52,7 +51,7 @@ func scrapeInstagramPlaywright(page playwright.Page, url, handle string) (bool, 
 	var followers, following, posts, bioText string
 
 	metaDesc, _ := page.Locator(`meta[name="description"]`).GetAttribute("content")
-	
+
 	// DEBUG: Print what we got
 	// fmt.Printf("DEBUG - Meta description: %q\n", metaDesc)
 
@@ -89,7 +88,7 @@ func scrapeInstagramPlaywright(page playwright.Page, url, handle string) (bool, 
 			} else {
 				bioText = strings.TrimSpace(metaDesc[bioStart:])
 			}
-			fmt.Printf("DEBUG - Found bio: %q\n", bioText)
+			// fmt.Printf("DEBUG - Found bio: %q\n", bioText)
 		}
 	}
 

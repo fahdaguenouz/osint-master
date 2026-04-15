@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"osint/internal/core"
 	"github.com/playwright-community/playwright-go"
+	"osint/internal/core"
 )
 
 // RouteScraper decides whether to use HTTP or Playwright based on the platform
@@ -19,9 +19,10 @@ func RouteScraper(ctx context.Context, client *http.Client, page playwright.Page
 		return checkRedditJSON(ctx, client, handle)
 	case "tiktok":
 		return checkTikTokWithOEmbed(ctx, client, handle)
-	case "twitter":
-		// Twitter now uses the Syndication API bypass instead of Playwright
-		return checkTwitterSyndication(ctx, client, handle)
+	case "medium":
+		return scrapeMediumPlaywright(page, url, handle)
+	case "youtube":
+		return scrapeYouTubePlaywright(page, url, handle)
 
 	// JS-heavy platforms - use the Playwright page
 	case "instagram":
