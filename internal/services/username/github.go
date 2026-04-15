@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"osint/internal/core"
-	"strings"
-	"time"
 )
 
 // fetchGitHubWithRepos fetches profile + public repos via GitHub API (no auth needed for public)
@@ -82,49 +80,4 @@ func fetchGitHubWithRepos(ctx context.Context, client *http.Client, handle strin
 
 	followersStr := fmt.Sprintf("%d", user.Followers)
 	return true, user.Bio, followersStr, formatGitHubDate(user.UpdatedAt), posts, ""
-}
-
-// parseGitHubWithRepos uses HTML parsing as fallback
-func parseGitHubWithRepos(text, html, handle string, client *http.Client) (bool, string, string, string, []core.Post, string) {
-	if strings.Contains(html, "page not found") || strings.Contains(html, "404") {
-		return false, "", "", "", nil, ""
-	}
-
-	// Try API first for better data
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Quick API check
-	apiFound, bio, followers, lastActive, posts, _ := fetchGitHubWithRepos(ctx, client, handle)
-	if apiFound && len(posts) > 0 {
-		return apiFound, bio, followers, lastActive, posts, ""
-	}
-
-	// Fallback to HTML parsing
-	bio = extractField(text, `"bio":`, `,`)
-	if bio == "" {
-		bio = extractBetween(text, `<div class="p-note user-profile-bio mb-3 js-user-profile-bio f4">`, `</div>`, 300)
-		bio = cleanHTML(bio)
-	}
-
-	followers = extractField(text, `"followers":`, `,`)
-	if followers == "" {
-		followers = extractField(text, `"followersCount":`, `,`)
-	}
-
-	// Look for repo names in HTML - FIX: use = not := to avoid redeclaration
-	var htmlPosts []core.Post
-	repoMatches := extractAllMatches(text, `<a href="/`+handle+`/([^"]+)" itemprop="name codeRepository"`)
-	for i, repo := range repoMatches {
-		if i >= 4 {
-			break
-		}
-		htmlPosts = append(htmlPosts, core.Post{
-			Content:  "Repository: " + repo,
-			Date:     "", // Unknown from HTML
-			Platform: "GitHub",
-		})
-	}
-
-	return true, cleanJSONString(bio), cleanJSONString(followers), "", htmlPosts, ""
 }

@@ -1,84 +1,75 @@
 package username
 
 import (
-	"fmt"
-	"osint/internal/core"
-	"strings"
+    "fmt"
+    "osint/internal/core"
+    "strings"
+
+    "github.com/playwright-community/playwright-go"
 )
 
-func parseInstagramDetailed(text, html string) (bool, string, string, string, []core.Post, string) {
+// --- INSTAGRAM (Playwright with fixed Selectors & Stats) ---
+func scrapeInstagramPlaywright(page playwright.Page, url, handle string) (bool, string, string, string, []core.Post, string) {
+    _, err := page.Goto(url, playwright.PageGotoOptions{
+        WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+    })
+    if err != nil {
+        return false, "", "", "", nil, "instagram: navigation failed"
+    }
 
-	if strings.Contains(html, "page not found") {
-		return false, "", "", "", nil, ""
-	}
+    currentURL := page.URL()
+    if strings.Contains(currentURL, "accounts/login") {
+        return false, "", "", "", nil, "instagram: forced login wall"
+    }
 
-	// 🔥 better login wall detection
-	if strings.Contains(html, "login") ||
-		strings.Contains(html, "sign up") ||
-		strings.Contains(html, "accounts/login") {
-		return false, "", "", "", nil, "instagram: login wall"
-	}
+    title, _ := page.Title()
+    if strings.Contains(strings.ToLower(title), "page not found") {
+        return false, "", "", "", nil, ""
+    }
 
-	var bio string
-	var followers string
-	var posts []core.Post
-	var lastActive string
+    // FIX: Increased timeout to 10 seconds (10000ms) to allow heavy SPA rendering
+    _, err = page.WaitForSelector("header", playwright.PageWaitForSelectorOptions{
+        Timeout: playwright.Float(10000), 
+    })
+    if err != nil {
+        return false, "", "", "", nil, "instagram: profile didn't render"
+    }
 
-	// ✅ NEW: try multiple patterns (Instagram changed structure)
+    // 1. Extract Stats (posts, followers, following) from the unordered list
+    statsText := ""
+    statsLoc := page.Locator("header ul")
+    if text, err := statsLoc.InnerText(); err == nil {
+        statsText = cleanPlaywrightText(text)
+    }
 
-	// BIO
-	bioPatterns := []string{
-		`"biography":"([^"]*)"`,
-		`"bio":"([^"]*)"`,
-	}
+    // 2. Extract Bio from the last div in the header section
+    bioText := ""
+    bioLoc := page.Locator("header section").Locator("xpath=./div[last()]")
+    if text, err := bioLoc.InnerText(); err == nil {
+        bioText = cleanPlaywrightText(text)
+    }
 
-	for _, p := range bioPatterns {
-		match := extractAllMatches(text, p)
-		if len(match) > 0 {
-			bio = cleanJSONString(match[0])
-			break
-		}
-	}
+    // 3. Extract pure follower count
+    followersText := ""
+    followLoc := page.Locator(fmt.Sprintf("a[href='/%s/followers/'] span", handle)).First()
+    if text, err := followLoc.GetAttribute("title"); err == nil && text != "" {
+        followersText = text
+    } else if text, err := followLoc.InnerText(); err == nil {
+        followersText = text
+    }
 
-	// FOLLOWERS
-	followPatterns := []string{
-		`"edge_followed_by":\{"count":(\d+)`,
-		`"follower_count":(\d+)`,
-	}
+    // 4. Combine Stats and Bio for the final output string
+    profileInfo := ""
+    if statsText != "" {
+        profileInfo += statsText
+    }
+    
+    if bioText != "" {
+        if profileInfo != "" {
+            profileInfo += " | " // Add a separator if we have both
+        }
+        profileInfo += "Bio: " + bioText
+    }
 
-	for _, p := range followPatterns {
-		match := extractAllMatches(text, p)
-		if len(match) > 0 {
-			followers = match[0]
-			break
-		}
-	}
-
-	// POSTS
-	postDates := extractAllMatches(text, `"taken_at_timestamp":(\d+)`)
-
-	for i, ts := range postDates {
-		if i >= 3 {
-			break
-		}
-
-		date := unixToDate(ts)
-
-		posts = append(posts, core.Post{
-			Content:  fmt.Sprintf("Post %d", i+1),
-			Date:     date,
-			Platform: "Instagram",
-		})
-
-		if i == 0 {
-			lastActive = date
-		}
-	}
-
-	// PRIVATE ACCOUNT
-	if strings.Contains(text, `"is_private":true`) {
-		return true, "Private account", "Hidden", "", nil, "Private Profile"
-	}
-
-	return true, bio, followers, lastActive, posts, ""
+    return true, profileInfo, followersText, "", nil, ""
 }

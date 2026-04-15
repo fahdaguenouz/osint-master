@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// checkTikTokWithOEmbed - Single function for TikTok checking using OEmbed API
+// --- TIKTOK (OEmbed & Direct HTML Scraping) ---
 func checkTikTokWithOEmbed(ctx context.Context, client *http.Client, handle string) (bool, string, string, string, []core.Post, string) {
 	oembedURL := fmt.Sprintf("https://www.tiktok.com/oembed?url=https://www.tiktok.com/@%s", handle)
 
@@ -40,17 +40,13 @@ func checkTikTokWithOEmbed(ctx context.Context, client *http.Client, handle stri
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || data.AuthorName == "" {
 		return checkTikTokDirect(ctx, client, handle)
 	}
-	
-	profileInfo :=  data.AuthorName
-	// Build profile info from author_name only
 
-	// Get followers and posts from profile page
+	profileInfo := data.AuthorName
 	followers, posts := fetchTikTokStats(ctx, client, handle)
 
 	return true, profileInfo, followers, "", posts, ""
 }
 
-// fetchTikTokStats - Fetches only stats (followers, posts) from TikTok profile page
 func fetchTikTokStats(ctx context.Context, client *http.Client, handle string) (string, []core.Post) {
 	url := fmt.Sprintf("https://www.tiktok.com/@%s", handle)
 
@@ -88,7 +84,6 @@ func fetchTikTokStats(ctx context.Context, client *http.Client, handle string) (
 	snippet, _ := io.ReadAll(io.LimitReader(reader, 256*1024))
 	text := string(snippet)
 
-	// Extract followers only
 	followers := extractField(text, `"followerCount":`, `,`)
 	if followers == "" {
 		followers = extractField(text, `"fans":`, `,`)
@@ -97,7 +92,6 @@ func fetchTikTokStats(ctx context.Context, client *http.Client, handle string) (
 		followers = extractField(text, `"stats":{"followerCount":`, `}`)
 	}
 
-	// Extract video dates (max 3)
 	var posts []core.Post
 	videoDates := extractAllMatches(text, `"createTime":"(\d{10})"`)
 	for i, ts := range videoDates {
@@ -114,7 +108,9 @@ func fetchTikTokStats(ctx context.Context, client *http.Client, handle string) (
 	return followers, posts
 }
 
-// checkTikTokDirect - Fallback direct check if OEmbed fails
+
+
+
 func checkTikTokDirect(ctx context.Context, client *http.Client, handle string) (bool, string, string, string, []core.Post, string) {
 	url := fmt.Sprintf("https://www.tiktok.com/@%s", handle)
 
