@@ -1,28 +1,27 @@
 package username
 
 import (
+	"fmt"
 	"osint/internal/core"
+	"regexp"
 	"strings"
 
 	"github.com/playwright-community/playwright-go"
 )
 
-// --- INSTAGRAM (Improved Anti-Detection + Fallbacks) ---
+// --- INSTAGRAM (Debug Version) ---
 func scrapeInstagramPlaywright(page playwright.Page, url, handle string) (bool, string, string, string, []core.Post, string) {
 
-	// -------------------------------
-	// 1. Stealth Patch (IMPORTANT)
-	// -------------------------------
+	// ... (stealth and navigation code stays the same) ...
+
 	page.AddInitScript(playwright.Script{
 		Content: playwright.String(`
-		Object.defineProperty(navigator, 'webdriver', {
-			get: () => false,
-		});
+		Object.defineProperty(navigator, 'webdriver', { get: () => false });
+		delete window.__playwright;
+		delete window.__pw_manual;
 	`),
 	})
-	// -------------------------------
-	// 2. Navigate (NO networkidle)
-	// -------------------------------
+
 	_, err := page.Goto(url, playwright.PageGotoOptions{
 		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
 		Timeout:   playwright.Float(15000),
@@ -31,94 +30,102 @@ func scrapeInstagramPlaywright(page playwright.Page, url, handle string) (bool, 
 		return false, "", "", "", nil, "instagram: navigation failed"
 	}
 
-	// Give React time to render
 	page.WaitForTimeout(3000)
-
 	currentURL := page.URL()
 
-	// -------------------------------
-	// 3. Detect Login Wall
-	// -------------------------------
 	if strings.Contains(currentURL, "/accounts/login") {
 		return true, "Profile exists but redirected to login", "", "", nil, "instagram: login redirect"
 	}
-	// -------------------------------
-	// 4. Detect Not Found
-	// -------------------------------
+
 	title, _ := page.Title()
 	if strings.Contains(strings.ToLower(title), "not found") {
 		return false, "", "", "", nil, ""
 	}
 
-	// -------------------------------
-	// 5. Wait for profile header
-	// -------------------------------
-	_, err = page.WaitForSelector("header", playwright.PageWaitForSelectorOptions{
+	page.WaitForSelector("header", playwright.PageWaitForSelectorOptions{
 		Timeout: playwright.Float(8000),
 	})
 
-	// Even if header fails → don't exit yet (fallback later)
-
-	var profileInfo string
-	var followers string
-
 	// -------------------------------
-	// 6. STRATEGY 1: META TAG (Best case)
+	// EXTRACT ALL FROM META DESCRIPTION
 	// -------------------------------
+	var followers, following, posts, bioText string
+
 	metaDesc, _ := page.Locator(`meta[name="description"]`).GetAttribute("content")
+	
+	// DEBUG: Print what we got
+	// fmt.Printf("DEBUG - Meta description: %q\n", metaDesc)
 
-	if metaDesc == "" {
-		return true, "Profile may exist but Instagram blocked data", "", "", nil, "instagram: partial block"
-	}
+	if metaDesc != "" {
+		// Use SEPARATE regexes for each stat (more reliable)
+		// Followers
+		followersRegex := regexp.MustCompile(`(?i)([\d,]+)\s+followers?`)
+		if match := followersRegex.FindStringSubmatch(metaDesc); len(match) >= 2 {
+			followers = strings.TrimSpace(match[1])
+			// fmt.Printf("DEBUG - Found followers: %s\n", followers)
+		}
 
-	if metaDesc != "" && strings.Contains(metaDesc, "Followers") {
-		parts := strings.Split(metaDesc, " - ")
-		if len(parts) > 0 {
-			statsRaw := parts[0]
-			profileInfo = statsRaw
+		// Following - CRITICAL: use \b word boundary
+		followingRegex := regexp.MustCompile(`(?i)([\d,]+)\s+following\b`)
+		if match := followingRegex.FindStringSubmatch(metaDesc); len(match) >= 2 {
+			following = strings.TrimSpace(match[1])
+			// fmt.Printf("DEBUG - Found following: %s\n", following)
+		}
 
-			fParts := strings.Split(statsRaw, " Followers")
-			if len(fParts) > 0 {
-				followers = strings.TrimSpace(fParts[0])
+		// Posts
+		postsRegex := regexp.MustCompile(`(?i)([\d,]+)\s+posts?\b`)
+		if match := postsRegex.FindStringSubmatch(metaDesc); len(match) >= 2 {
+			posts = strings.TrimSpace(match[1])
+			// fmt.Printf("DEBUG - Found posts: %s\n", posts)
+		}
+
+		// Extract bio
+		postsIdx := strings.Index(metaDesc, "Posts -")
+		if postsIdx != -1 {
+			bioStart := postsIdx + 7
+			seeInstaIdx := strings.LastIndex(metaDesc, " - See Instagram")
+			if seeInstaIdx != -1 && seeInstaIdx > bioStart {
+				bioText = strings.TrimSpace(metaDesc[bioStart:seeInstaIdx])
+			} else {
+				bioText = strings.TrimSpace(metaDesc[bioStart:])
 			}
+			fmt.Printf("DEBUG - Found bio: %q\n", bioText)
 		}
 	}
 
-	// -------------------------------
-	// 7. STRATEGY 2: DOM fallback
-	// -------------------------------
-	if profileInfo == "" {
-		if ulText, err := page.Locator("header ul").InnerText(); err == nil {
-			profileInfo = strings.ReplaceAll(strings.TrimSpace(ulText), "\n", ", ")
-		}
+	// ... (rest of the code stays the same) ...
+
+	// Build output
+	var infoParts []string
+	if followers != "" {
+		infoParts = append(infoParts, followers+" followers")
+	}
+	if following != "" {
+		infoParts = append(infoParts, following+" following")
+	}
+	if posts != "" {
+		infoParts = append(infoParts, posts+" posts")
 	}
 
-	// -------------------------------
-	// 8. Extract BIO
-	// -------------------------------
-	bioText := ""
-
-	bioLoc := page.Locator("header section > div").Last()
-	if text, err := bioLoc.InnerText(); err == nil {
-		bioText = cleanPlaywrightText(text)
-	}
-
+	statsLine := strings.Join(infoParts, ", ")
+	finalProfile := statsLine
 	if bioText != "" {
-		if profileInfo != "" {
-			profileInfo += " | Bio: "
+		if finalProfile != "" {
+			finalProfile += " | " + bioText
 		} else {
-			profileInfo = "Bio: "
+			finalProfile = bioText
 		}
-		profileInfo += bioText
 	}
 
-	// -------------------------------
-	// 9. FINAL FALLBACK (important)
-	// -------------------------------
-	if profileInfo == "" {
-		// profile likely exists but blocked partially
-		return true, "Profile exists (limited data - possible blocking)", "", "", nil, "instagram: partial data"
+	if finalProfile == "" {
+		return true, "Profile exists (limited data)", "", "", nil, "instagram: partial data"
 	}
 
-	return true, profileInfo, followers, "", nil, ""
+	return true, finalProfile, followers, "", nil, ""
+}
+
+func cleanText(text string) string {
+	text = strings.TrimSpace(text)
+	text = strings.Join(strings.Fields(text), " ")
+	return text
 }

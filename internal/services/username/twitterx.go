@@ -10,9 +10,7 @@ import (
 	"strings"
 )
 
-func cleanPlaywrightText(s string) string {
-	return strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
-}
+
 
 type twitterSyndicationUser struct {
 	Name                    string `json:"name"`
