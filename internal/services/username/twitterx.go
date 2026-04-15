@@ -4,64 +4,36 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"osint/internal/core"
 	"strings"
-
-	"github.com/playwright-community/playwright-go"
 )
-
-func scrapeTwitterPlaywright(page playwright.Page, url, handle string) (bool, string, string, string, []core.Post, string) {
-	_, err := page.Goto(url, playwright.PageGotoOptions{
-		WaitUntil: playwright.WaitUntilStateNetworkidle,
-	})
-	if err != nil {
-		return false, "", "", "", nil, "twitter: navigation failed"
-	}
-
-	title, _ := page.Title()
-	if strings.Contains(strings.ToLower(title), "suspended") || strings.Contains(strings.ToLower(title), "doesn't exist") {
-		return false, "", "", "", nil, ""
-	}
-
-	// Wait for the user profile description div to load (max 5 seconds)
-	_, err = page.WaitForSelector("[data-testid='UserDescription']", playwright.PageWaitForSelectorOptions{
-		Timeout: playwright.Float(5000),
-	})
-	if err != nil {
-		// If it times out, the profile likely doesn't exist or is behind a login wall
-		return false, "", "", "", nil, ""
-	}
-
-	// Extract Bio
-	bioText := ""
-	if bioLoc := page.Locator("[data-testid='UserDescription']"); bioLoc != nil {
-		bioText, _ = bioLoc.InnerText()
-	}
-
-	// Extract Followers
-	followersText := ""
-	// Selects the anchor tag containing the word "followers" in the href
-	followLoc := page.Locator("a[href$='/verified_followers'] > div > span > span")
-	if count, err := followLoc.InnerText(); err == nil {
-		followersText = count
-	}
-
-	return true, cleanPlaywrightText(bioText), followersText, "", nil, ""
-}
 
 func cleanPlaywrightText(s string) string {
 	return strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
 }
 
-// --- TWITTER (Syndication API Bypass) ---
+type twitterSyndicationUser struct {
+	Name                    string `json:"name"`
+	ScreenName              string `json:"screen_name"`
+	FollowersCount          int    `json:"followers_count"`
+	FormattedFollowersCount string `json:"formatted_followers_count"`
+	Protected               bool   `json:"protected"`
+	Verified                bool   `json:"verified"`
+}
+
 func checkTwitterSyndication(ctx context.Context, client *http.Client, handle string) (bool, string, string, string, []core.Post, string) {
 	url := fmt.Sprintf("https://cdn.syndication.twimg.com/widgets/followbutton/info.json?screen_names=%s", handle)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return false, "", "", "", nil, "twitter: request failed"
+		return false, "", "", "", nil, "twitter: request creation failed"
 	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Header.Set("Accept", "application/json,text/plain,*/*")
+	req.Header.Set("Referer", "https://x.com/")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -69,22 +41,47 @@ func checkTwitterSyndication(ctx context.Context, client *http.Client, handle st
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode == http.StatusNotFound {
 		return false, "", "", "", nil, ""
 	}
-
-	var data []struct {
-		Name           string `json:"name"`
-		FollowersCount int    `json:"followers_count"`
+	if resp.StatusCode != http.StatusOK {
+		return false, "", "", "", nil, fmt.Sprintf("twitter: HTTP %d", resp.StatusCode)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || len(data) == 0 {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, "", "", "", nil, "twitter: read failed"
+	}
+
+	if len(strings.TrimSpace(string(body))) == 0 {
+		return false, "", "", "", nil, "twitter: empty response"
+	}
+
+	var data []twitterSyndicationUser
+	if err := json.Unmarshal(body, &data); err != nil {
+		return false, "", "", "", nil, "twitter: invalid json"
+	}
+
+	if len(data) == 0 || data[0].ScreenName == "" {
 		return false, "", "", "", nil, ""
 	}
 
 	user := data[0]
-	followersText := fmt.Sprintf("%d", user.FollowersCount)
-	profileInfo := "Name: " + user.Name
 
-	return true, profileInfo, followersText, "", nil, ""
+	profileInfo := fmt.Sprintf("Name: %s | Username: @%s", user.Name, user.ScreenName)
+	if user.Verified {
+		profileInfo += " | Verified"
+	}
+	if user.Protected {
+		profileInfo += " | Protected"
+	}
+
+	followers := fmt.Sprintf("%d", user.FollowersCount)
+
+	lastActive := ""
+	if user.FormattedFollowersCount != "" {
+		lastActive = user.FormattedFollowersCount
+	}
+
+	return true, profileInfo, followers, lastActive, nil, ""
 }

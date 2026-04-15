@@ -99,3 +99,36 @@ func formatGitHubDate(date string) string {
 	}
 	return t.Format("2006-01-02")
 }
+
+
+func extractRealBio(text string) string {
+	lines := strings.Split(text, "\n")
+
+	var clean []string
+
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+
+		// ❌ Skip junk
+		if l == "" ||
+			strings.Contains(strings.ToLower(l), "followers") ||
+			strings.Contains(strings.ToLower(l), "following") ||
+			strings.Contains(strings.ToLower(l), "posts") {
+			continue
+		}
+
+		clean = append(clean, l)
+	}
+
+	return strings.Join(clean, " ")
+}
+
+func extractNumber(text, key string) string {
+	parts := strings.Split(text, ",")
+	for _, p := range parts {
+		if strings.Contains(strings.ToLower(p), strings.ToLower(key)) {
+			return strings.TrimSpace(strings.Split(p, " ")[0])
+		}
+	}
+	return ""
+}

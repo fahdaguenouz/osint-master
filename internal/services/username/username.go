@@ -45,7 +45,10 @@ func Run(query string) (core.Result, error) {
 	defer pw.Stop()
 
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(true),
+		Headless: playwright.Bool(false), // set false for debugging
+		Args: []string{
+			"--disable-blink-features=AutomationControlled",
+		},
 	})
 	if err != nil {
 		return r, fmt.Errorf("could not launch browser: %v", err)
@@ -53,8 +56,10 @@ func Run(query string) (core.Result, error) {
 	defer browser.Close()
 
 	bCtx, err := browser.NewContext(playwright.BrowserNewContextOptions{
-		UserAgent: playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
-		Viewport:  &playwright.Size{Width: 1280, Height: 720},
+		UserAgent:  playwright.String("Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"),
+		Viewport:   &playwright.Size{Width: 1280, Height: 720},
+		Locale:     playwright.String("en-US"),
+		TimezoneId: playwright.String("Europe/Paris"),
 	})
 	if err != nil {
 		return r, err
@@ -87,6 +92,23 @@ func Run(query string) (core.Result, error) {
 			if err != nil {
 				return
 			}
+			page.WaitForTimeout(2000)
+
+			// حاول نغلق popup
+			btn := page.Locator(`svg[aria-label="Close"], button:has-text("Not Now")`)
+			if count, _ := btn.Count(); count > 0 {
+				btn.First().Click()
+			}
+			page.Evaluate(`
+	document.body.style.overflow = 'auto';
+	const modal = document.querySelector('div[role="dialog"]');
+	if (modal) modal.remove();
+`)
+
+
+			page.SetExtraHTTPHeaders(map[string]string{
+				"accept-language": "en-US,en;q=0.9",
+			})
 			defer page.Close()
 
 			// Route to the appropriate scraper

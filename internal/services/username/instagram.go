@@ -1,75 +1,124 @@
 package username
 
 import (
-    "fmt"
-    "osint/internal/core"
-    "strings"
+	"osint/internal/core"
+	"strings"
 
-    "github.com/playwright-community/playwright-go"
+	"github.com/playwright-community/playwright-go"
 )
 
-// --- INSTAGRAM (Playwright with fixed Selectors & Stats) ---
+// --- INSTAGRAM (Improved Anti-Detection + Fallbacks) ---
 func scrapeInstagramPlaywright(page playwright.Page, url, handle string) (bool, string, string, string, []core.Post, string) {
-    _, err := page.Goto(url, playwright.PageGotoOptions{
-        WaitUntil: playwright.WaitUntilStateDomcontentloaded,
-    })
-    if err != nil {
-        return false, "", "", "", nil, "instagram: navigation failed"
-    }
 
-    currentURL := page.URL()
-    if strings.Contains(currentURL, "accounts/login") {
-        return false, "", "", "", nil, "instagram: forced login wall"
-    }
+	// -------------------------------
+	// 1. Stealth Patch (IMPORTANT)
+	// -------------------------------
+	page.AddInitScript(playwright.Script{
+		Content: playwright.String(`
+		Object.defineProperty(navigator, 'webdriver', {
+			get: () => false,
+		});
+	`),
+	})
+	// -------------------------------
+	// 2. Navigate (NO networkidle)
+	// -------------------------------
+	_, err := page.Goto(url, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		Timeout:   playwright.Float(15000),
+	})
+	if err != nil {
+		return false, "", "", "", nil, "instagram: navigation failed"
+	}
 
-    title, _ := page.Title()
-    if strings.Contains(strings.ToLower(title), "page not found") {
-        return false, "", "", "", nil, ""
-    }
+	// Give React time to render
+	page.WaitForTimeout(3000)
 
-    // FIX: Increased timeout to 10 seconds (10000ms) to allow heavy SPA rendering
-    _, err = page.WaitForSelector("header", playwright.PageWaitForSelectorOptions{
-        Timeout: playwright.Float(10000), 
-    })
-    if err != nil {
-        return false, "", "", "", nil, "instagram: profile didn't render"
-    }
+	currentURL := page.URL()
 
-    // 1. Extract Stats (posts, followers, following) from the unordered list
-    statsText := ""
-    statsLoc := page.Locator("header ul")
-    if text, err := statsLoc.InnerText(); err == nil {
-        statsText = cleanPlaywrightText(text)
-    }
+	// -------------------------------
+	// 3. Detect Login Wall
+	// -------------------------------
+	if strings.Contains(currentURL, "/accounts/login") {
+		return true, "Profile exists but redirected to login", "", "", nil, "instagram: login redirect"
+	}
+	// -------------------------------
+	// 4. Detect Not Found
+	// -------------------------------
+	title, _ := page.Title()
+	if strings.Contains(strings.ToLower(title), "not found") {
+		return false, "", "", "", nil, ""
+	}
 
-    // 2. Extract Bio from the last div in the header section
-    bioText := ""
-    bioLoc := page.Locator("header section").Locator("xpath=./div[last()]")
-    if text, err := bioLoc.InnerText(); err == nil {
-        bioText = cleanPlaywrightText(text)
-    }
+	// -------------------------------
+	// 5. Wait for profile header
+	// -------------------------------
+	_, err = page.WaitForSelector("header", playwright.PageWaitForSelectorOptions{
+		Timeout: playwright.Float(8000),
+	})
 
-    // 3. Extract pure follower count
-    followersText := ""
-    followLoc := page.Locator(fmt.Sprintf("a[href='/%s/followers/'] span", handle)).First()
-    if text, err := followLoc.GetAttribute("title"); err == nil && text != "" {
-        followersText = text
-    } else if text, err := followLoc.InnerText(); err == nil {
-        followersText = text
-    }
+	// Even if header fails → don't exit yet (fallback later)
 
-    // 4. Combine Stats and Bio for the final output string
-    profileInfo := ""
-    if statsText != "" {
-        profileInfo += statsText
-    }
-    
-    if bioText != "" {
-        if profileInfo != "" {
-            profileInfo += " | " // Add a separator if we have both
-        }
-        profileInfo += "Bio: " + bioText
-    }
+	var profileInfo string
+	var followers string
 
-    return true, profileInfo, followersText, "", nil, ""
+	// -------------------------------
+	// 6. STRATEGY 1: META TAG (Best case)
+	// -------------------------------
+	metaDesc, _ := page.Locator(`meta[name="description"]`).GetAttribute("content")
+
+	if metaDesc == "" {
+		return true, "Profile may exist but Instagram blocked data", "", "", nil, "instagram: partial block"
+	}
+
+	if metaDesc != "" && strings.Contains(metaDesc, "Followers") {
+		parts := strings.Split(metaDesc, " - ")
+		if len(parts) > 0 {
+			statsRaw := parts[0]
+			profileInfo = statsRaw
+
+			fParts := strings.Split(statsRaw, " Followers")
+			if len(fParts) > 0 {
+				followers = strings.TrimSpace(fParts[0])
+			}
+		}
+	}
+
+	// -------------------------------
+	// 7. STRATEGY 2: DOM fallback
+	// -------------------------------
+	if profileInfo == "" {
+		if ulText, err := page.Locator("header ul").InnerText(); err == nil {
+			profileInfo = strings.ReplaceAll(strings.TrimSpace(ulText), "\n", ", ")
+		}
+	}
+
+	// -------------------------------
+	// 8. Extract BIO
+	// -------------------------------
+	bioText := ""
+
+	bioLoc := page.Locator("header section > div").Last()
+	if text, err := bioLoc.InnerText(); err == nil {
+		bioText = cleanPlaywrightText(text)
+	}
+
+	if bioText != "" {
+		if profileInfo != "" {
+			profileInfo += " | Bio: "
+		} else {
+			profileInfo = "Bio: "
+		}
+		profileInfo += bioText
+	}
+
+	// -------------------------------
+	// 9. FINAL FALLBACK (important)
+	// -------------------------------
+	if profileInfo == "" {
+		// profile likely exists but blocked partially
+		return true, "Profile exists (limited data - possible blocking)", "", "", nil, "instagram: partial data"
+	}
+
+	return true, profileInfo, followers, "", nil, ""
 }
