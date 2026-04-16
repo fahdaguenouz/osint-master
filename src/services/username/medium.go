@@ -1,7 +1,7 @@
 package username
 
 import (
-	"osint/internal/core"
+	"osint/src/core"
 	"regexp"
 	"strings"
 
@@ -36,18 +36,18 @@ func scrapeMediumPlaywright(page playwright.Page, url, handle string) (bool, str
 
 	// Check for not found
 	title, _ := page.Title()
-	if strings.Contains(title, "404") || 
-	   strings.Contains(title, "Not Found") ||
-	   strings.Contains(title, "Page not found") ||
-	   strings.Contains(strings.ToLower(title), "medium member") {
+	if strings.Contains(title, "404") ||
+		strings.Contains(title, "Not Found") ||
+		strings.Contains(title, "Page not found") ||
+		strings.Contains(strings.ToLower(title), "medium member") {
 		return false, "", "", "", nil, ""
 	}
 
 	// Check if redirected to home (profile doesn't exist)
 	currentURL := page.URL()
-	if currentURL == "https://medium.com/" || 
-	   currentURL == "https://medium.com" ||
-	   strings.Contains(currentURL, "/search?") {
+	if currentURL == "https://medium.com/" ||
+		currentURL == "https://medium.com" ||
+		strings.Contains(currentURL, "/search?") {
 		return false, "", "", "", nil, ""
 	}
 

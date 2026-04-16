@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"osint/internal/core"
-	"osint/internal/detect"
+	"osint/src/core"
+	"osint/src/detect"
 
 	"github.com/playwright-community/playwright-go"
 )
@@ -104,7 +104,6 @@ func Run(query string) (core.Result, error) {
 	const modal = document.querySelector('div[role="dialog"]');
 	if (modal) modal.remove();
 `)
-
 
 			page.SetExtraHTTPHeaders(map[string]string{
 				"accept-language": "en-US,en;q=0.9",

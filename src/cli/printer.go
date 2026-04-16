@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"osint/internal/core"
+	"osint/src/core"
 )
 
 func PrintResult(w io.Writer, r core.Result) {

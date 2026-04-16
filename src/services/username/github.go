@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"osint/internal/core"
+	"osint/src/core"
 )
 
 // fetchGitHubWithRepos fetches profile + public repos via GitHub API (no auth needed for public)

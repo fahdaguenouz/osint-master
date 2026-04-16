@@ -1,13 +1,12 @@
 package username
 
 import (
-	"osint/internal/core"
+	"osint/src/core"
 	"regexp"
 	"strings"
 
 	"github.com/playwright-community/playwright-go"
 )
-
 
 // --- YOUTUBE (Easier Alternative to LinkedIn) ---
 func scrapeYouTubePlaywright(page playwright.Page, url, handle string) (bool, string, string, string, []core.Post, string) {

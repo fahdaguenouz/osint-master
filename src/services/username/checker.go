@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/playwright-community/playwright-go"
-	"osint/internal/core"
+	"osint/src/core"
 )
 
 // RouteScraper decides whether to use HTTP or Playwright based on the platform

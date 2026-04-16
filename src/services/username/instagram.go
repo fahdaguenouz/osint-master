@@ -1,7 +1,7 @@
 package username
 
 import (
-	"osint/internal/core"
+	"osint/src/core"
 	"regexp"
 	"strings"
 

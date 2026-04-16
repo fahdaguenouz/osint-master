@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"osint/internal/core"
+	"osint/src/core"
 	"regexp"
 	"strings"
 	"time"
@@ -214,7 +214,7 @@ func scrapeTikTokAPI(handle string) (bool, string, string, string, []core.Post, 
 
 	// Try oEmbed endpoint
 	oembedURL := fmt.Sprintf("https://www.tiktok.com/oembed?url=https://www.tiktok.com/@%s", handle)
-	
+
 	req, err := http.NewRequest(http.MethodGet, oembedURL, nil)
 	if err != nil {
 		return false, "", "", "", nil, "tiktok: api request failed"
@@ -239,9 +239,9 @@ func scrapeTikTokAPI(handle string) (bool, string, string, string, []core.Post, 
 	}
 
 	var oembedData struct {
-		Title       string `json:"title"`
-		AuthorName  string `json:"author_name"`
-		AuthorURL   string `json:"author_url"`
+		Title        string `json:"title"`
+		AuthorName   string `json:"author_name"`
+		AuthorURL    string `json:"author_url"`
 		ThumbnailURL string `json:"thumbnail_url"`
 	}
 

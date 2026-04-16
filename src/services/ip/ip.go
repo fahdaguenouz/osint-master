@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"osint/internal/core"
-	"osint/internal/detect"
+	"osint/src/core"
+	"osint/src/detect"
 )
 
 func Run(query string) (core.Result, error) {

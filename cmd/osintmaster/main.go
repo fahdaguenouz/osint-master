@@ -5,12 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"osint/internal/cli"
-	"osint/internal/core"
-	"osint/internal/output"
-	"osint/internal/services/domain"
-	"osint/internal/services/ip"
-	"osint/internal/services/username"
+	"osint/src/cli"
+	"osint/src/core"
+	"osint/src/output"
+	"osint/src/services/domain"
+	"osint/src/services/ip"
+	"osint/src/services/username"
 )
 
 func main() {

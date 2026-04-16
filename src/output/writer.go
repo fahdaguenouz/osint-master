@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"osint/internal/core"
+	"osint/src/core"
 )
 
 func NextResultFilename(dir string) (string, error) {

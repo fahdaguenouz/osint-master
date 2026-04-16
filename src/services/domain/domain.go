@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"osint/internal/core"
+	"osint/src/core"
 )
 
 // Pre-allocated takeover patterns as slice for faster iteration

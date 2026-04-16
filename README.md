@@ -1,347 +1,410 @@
 
-## `README.md`
-
-```markdown
 # OSINT-Master
 
-A comprehensive open-source intelligence (OSINT) tool for passive reconnaissance, built in Go.
+![OSINT Meme](./resources/osint.png)
 
-![OSINT Meme](resources/osint-meme.png)
+A comprehensive Open-Source Intelligence (OSINT) tool for cybersecurity reconnaissance. This tool performs passive reconnaissance using publicly available data to identify potential vulnerabilities and security risks.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Output Format](#output-format)
+- [Architecture](#architecture)
+- [Ethical Guidelines](#ethical-guidelines)
+- [Troubleshooting](#troubleshooting)
+- [Limitations](#limitations)
 
 ## Overview
 
-OSINT-Master is a multi-functional command-line tool that performs passive reconnaissance using publicly available data sources. It retrieves detailed information based on user inputs including IP addresses, usernames, and domains.
+OSINT-Master is a multi-functional security tool built in Go that retrieves detailed information based on:
+- **IP Addresses** - Geolocation, ISP details, and abuse reputation
+- **Usernames** - Social network presence across 6+ platforms
+- **Domains** - Subdomain enumeration and takeover risk assessment
 
-**⚠️ Educational Use Only**: This tool is designed for educational purposes and authorized security testing only.
+The tool implements custom logic for data gathering rather than wrapping existing OSINT CLI tools, demonstrating proper understanding of OSINT techniques and methodologies.
 
 ## Features
 
-- **IP Address Lookup**: Geolocation, ISP details, ASN, and abuse reputation checking
-- **Username Search**: Profile discovery across 5+ social networks (GitHub, Twitter/X, Instagram, TikTok, Facebook) with bio, follower counts, and recent activity
-- **Domain Enumeration**: Subdomain discovery, SSL certificate validation, and subdomain takeover risk detection
-- **Full Name Search** (Bonus): Basic full name parsing (extensible for future enhancement)
+### IP Address Lookup (`-i`)
+- Geolocation data (city, country, coordinates)
+- ISP and ASN information
+- Abuse reputation checking via AbuseIPDB
+- No API key required for basic lookup (ip-api.com)
+
+### Username Search (`-u`)
+Checks presence on 6 social networks:
+- **GitHub** - Public repos, followers, bio, recent activity
+- **Reddit** - Karma, public description, account age
+- **Instagram** - Followers, following, posts count, bio
+- **TikTok** - Followers, following, likes, profile info
+- **YouTube** - Subscribers, channel description
+- **Medium** - Author info, follower count
+
+Features:
+- Concurrent checking for faster results
+- Hybrid approach: HTTP APIs for open platforms, Playwright for JS-heavy sites
+- Recent activity detection across platforms
+- Profile bio and follower count extraction
+
+### Domain Enumeration (`-d`)
+- Subdomain discovery via Certificate Transparency logs (crt.sh)
+- DNS resolution (IP addresses and CNAME records)
+- SSL certificate validation and expiry dates
+- **Subdomain takeover detection** for 25+ cloud services:
+  - AWS S3, CloudFront, Azure, GitHub Pages
+  - Heroku, Vercel, Netlify, Firebase
+  - Shopify, WordPress.com, and more
 
 ## Prerequisites
 
-- Go 1.21 or higher
-- Internet connection
-- (Optional) AbuseIPDB API key for enhanced IP reputation checking
+- **Go 1.21+** - [Download](https://go.dev/dl/)
+- **Playwright** - For browser automation (username search)
+- **Git** - For cloning the repository
+
+### System Requirements
+- RAM: 4GB minimum (8GB recommended for concurrent browser operations)
+- Disk: 500MB for tool + browser binaries
+- Network: Internet connection for API calls
 
 ## Installation
 
+### 1. Clone the Repository
+
 ```bash
-# Clone the repository
-git clone https://github.com/fahdaguenouz/osint
-cd osint
+git clone https://github.com/fahdaguenouz/osint-master.git
+cd osint-master
+```
 
-# Install dependencies
+### 2. Install Go Dependencies
+
+```bash
+go mod download
 go mod tidy
+```
 
-# Build the tool
-go build -o osintmaster cmd/osintmaster/main.go
+### 3. Install Playwright Browsers
 
-# Or run directly without building
-go run cmd/osintmaster/main.go --help
+```bash
+go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps chromium
+```
+
+### 4. Build the Tool
+
+```bash
+go build -o osintmaster ./cmd/osintmaster
+```
+
+Or use the Makefile:
+```bash
+make build
+```
+
+### 5. Create Results Directory
+
+```bash
+mkdir -p results
 ```
 
 ## Configuration
 
 ### Optional: AbuseIPDB API Key
 
-For enhanced IP abuse checking, set your API key:
+For enhanced IP reputation checking, set an environment variable:
 
 ```bash
 export ABUSEIPDB_API_KEY="your_api_key_here"
 ```
 
-Free tier: 1,000 checks per day. The tool works without this, but won't show abuse confidence scores.
+Or create a `.env` file:
+```bash
+ABUSEIPDB_API_KEY=your_api_key_here
+```
+
+> **Note:** The tool works without this key. Basic IP lookup uses ip-api.com (free, no key required).
+
+### Optional: GitHub Token
+
+For higher rate limits on GitHub API, set:
+```bash
+export GITHUB_TOKEN="your_github_token"
+```
 
 ## Usage
 
-### Help
+### Command Line Interface
 
 ```bash
 ./osintmaster --help
 ```
 
-Output:
+**Options:**
 ```
-Welcome to osintmaster multi-function Tool
-
 OPTIONS:
     -i  "IP Address"       Search information by IP address
     -u  "Username"         Search information by username
     -d  "Domain"           Enumerate subdomains and check for takeover risks
-    -n  "Full Name"        Search information by full name (bonus)
-    -o  "FileName"         File name to save output
+    -o  "FileName"         File name to save output (saved in results/ folder)
     --help                 Display this help message
 ```
 
-### IP Address Lookup
+### Examples
+
+#### IP Address Lookup
 
 ```bash
-./osintmaster -i 8.8.8.8 -o result.txt
+./osintmaster -i 8.8.8.8
+./osintmaster -i 8.8.8.8 -o google_dns.txt
 ```
 
-**Example Output:**
+**Sample Output:**
 ```
 ISP: Google LLC
 City: Mountain View
 Country: United States
 ASN: AS15169 Google LLC
-Lat/Lon: 37.3860 / -122.0838
 Known Issues: No reported abuse
-
-Data saved in result.txt
 ```
 
-**Data Sources:**
-- ip-api.com (free, no API key): Geolocation, ISP, ASN
-- AbuseIPDB (optional): Abuse confidence score and report count
-
-### Username Search
+#### Username Search
 
 ```bash
-./osintmaster -u torvalds -o result.txt
+./osintmaster -u "john_doe"
+./osintmaster -u "@johndoe" -o user_report.txt
 ```
 
-**Example Output:**
+**Sample Output:**
 ```
-Facebook: Not Found
-Twitter: Found (2.5M followers)
-  Bio: Creator of Linux...
-Instagram: Not Found
+Github: Found (45 followers)
+  Bio: Full-stack developer | Open source enthusiast
+Reddit: Found (1,234 karma)
+  Bio: Tech enthusiast and gamer
+Instagram: Found (1.2k followers)
+Youtube: Found (5.6k subscribers)
+  Bio: Tech tutorials and reviews
 Tiktok: Not Found
-Github: Found (100k+ followers)
-  Bio: Linux creator
-  Recent Activity:
-    - Repository: linux (2024-03-15)
-    - Repository: git (2024-03-10)
+Medium: Found
+  Bio: Software engineer writing about Go and cloud architecture
 
-Recent Activity: Active on: twitter, github
-Last Post: Repository: linux on GitHub (2024-03-15)
-
-Data saved in result.txt
+Recent Activity: Active on: github, reddit, youtube
+Last Post: Released new Go library for API testing on github (2024-03-15)
 ```
 
-**Platforms Checked:**
-1. GitHub - Public repositories, bio, followers
-2. Twitter/X - Bio, followers, recent tweets
-3. Instagram - Bio, followers, recent posts
-4. TikTok - Bio, followers, recent videos
-5. Facebook - Basic profile info (limited due to privacy restrictions)
-
-**Note:** Social media platforms frequently change their anti-scraping measures. Some platforms may require login or show rate limits.
-
-### Domain Enumeration
+#### Domain Enumeration
 
 ```bash
-./osintmaster -d example.com -o result.txt
+./osintmaster -d example.com
+./osintmaster -d "example.com" -o domain_audit.txt
 ```
 
-**Example Output:**
+**Sample Output:**
 ```
 Main Domain: example.com
 
-Subdomains found: 3
+Subdomains found: 5
   - example.com (IP: 93.184.216.34)
-    SSL Certificate: Valid until 2025-12-01
+    SSL Certificate: Valid until 2025-08-15
   - www.example.com (IP: 93.184.216.34)
-    SSL Certificate: Valid until 2025-12-01
-  - mail.example.com (IP: 93.184.216.35)
-    SSL Certificate: Valid until 2025-12-01
+    SSL Certificate: Valid until 2025-08-15
+  - api.example.com (IP: 104.21.45.67)
+    SSL Certificate: Valid until 2025-06-20
+  - blog.example.com (IP: 192.0.2.1)
+    SSL Certificate: Not found
+  - staging.example.com (IP: unresolved)
+    SSL Certificate: Not found
 
-Potential Subdomain Takeover Risks: None detected
+Potential Subdomain Takeover Risks:
+  - Subdomain: staging.example.com
+    CNAME record points to a non-existent AWS S3 bucket (staging-example-com.s3.amazonaws.com)
+    Recommended Action: Remove or update the DNS record to prevent potential misuse
 
-Data saved in result.txt
+Data saved in results/domain_audit.txt
 ```
-
-**Features:**
-- Subdomain enumeration via Certificate Transparency logs (crt.sh)
-- DNS resolution for each subdomain
-- SSL certificate validation and expiry dates
-- Subdomain takeover detection (dangling CNAMEs to cloud services)
-
-**Detected Takeover Services:**
-- AWS S3, CloudFront
-- GitHub Pages
-- Heroku
-- Azure (Websites, Blob Storage)
-- Vercel, Netlify, Cloudflare Pages
-- And more...
-
-### Full Name Search (Bonus)
-
-```bash
-./osintmaster -n "John Doe" -o result.txt
-```
-
-Currently returns parsed first/last name. Extensible for future data source integration.
 
 ## Output Format
 
-Results are saved in plain text format with:
-- Timestamp
-- Query type and input
-- Structured results per feature
-- Data sources used
-- Warnings (if any)
+All results are saved to the `results/` directory with auto-generated filenames:
+- `results/result.txt` (first run)
+- `results/result2.txt` (second run)
+- `results/result3.txt` (third run)
+- etc.
 
-Files are saved as `result.txt`, `result2.txt`, etc., or custom filename via `-o` flag.
+Or specify custom filename with `-o`:
+```bash
+./osintmaster -d example.com -o my_scan.txt  # Saved as results/my_scan.txt
+```
 
 ## Architecture
 
 ```
-osint/
-├── cmd/osintmaster/
-│   └── main.go              # Entry point
-├── internal/
-│   ├── cli/
-│   │   ├── flags.go         # Command-line parsing
-│   │   └── printer.go       # Terminal output
-│   ├── core/
-│   │   └── models.go        # Data structures
-│   ├── services/
-│   │   ├── domain/          # Domain enumeration
-│   │   ├── ip/              # IP geolocation & abuse
-│   │   ├── username/        # Social media checks
-│   │   └── fullname/        # Full name parsing
-│   └── output/
-│       └── writer.go        # File output
-├── resources/
-│   └── osint-meme.png
-├── go.mod
-└── README.md
+osint-master/
+├── cmd/osintmaster/         # Main entry point
+│   └── main.go
+├── src/
+│   ├── cli/                   # Command-line argument parsing
+│   ├── core/                  # Data structures and result types
+│   ├── detect/                # Input validation (IP, username, domain)
+│   ├── output/                # File output formatting
+│   └── services/
+│       ├── domain/            # Domain enumeration & takeover detection
+│       ├── ip/                # IP geolocation & abuse checking
+│       └── username/          # Social network scraping
+├── results/                   # Output directory (auto-created)
+├── resources/                 # Static assets
+├── go.mod                     # Go module definition
+├── go.sum                     # Dependency checksums
+└── README.md                  # This file
 ```
 
-## API Usage & Rate Limits
+### Key Design Decisions
 
-| Service | Type | Limits | Auth Required |
-|---------|------|--------|---------------|
-| ip-api.com | IP Geolocation | 45 requests/minute | No |
-| AbuseIPDB | IP Reputation | 1,000/day | Optional (free tier) |
-| crt.sh | Subdomain Enum | No limit | No |
-| GitHub API | Profile/Repos | 60/hour (unauthenticated) | No |
-| Social Media | Profile Check | Varies | No |
+1. **Concurrent Processing**: Domain enumeration uses semaphore-limited goroutines (max 10 concurrent) to prevent overwhelming target servers.
 
-**Rate Limit Handling:**
-- The tool implements timeouts and backoff strategies
-- Warnings are displayed if rate limits are hit
-- Results are cached where possible to minimize requests
+2. **Hybrid Scraping**: Username search uses HTTP APIs for open platforms (GitHub, Reddit) and Playwright browser automation for JS-heavy sites (Instagram, TikTok).
 
-## Ethical and Legal Guidelines
+3. **Timeout Management**: Multiple timeout layers prevent hanging:
+   - Overall operation: 90s (domain), 60s (username), 15s (IP)
+   - Per-subdomain: 5s DNS + 3s SSL
+   - HTTP requests: 10-25s depending on endpoint
 
-### Responsible Use
+4. **Connection Pooling**: Shared HTTP clients and DNS resolvers reduce resource usage.
 
-1. **Get Permission**: Always obtain explicit permission before gathering information about individuals or organizations.
+## Ethical Guidelines
 
-2. **Respect Privacy**: Collect only necessary data and store it securely. Do not share or publish personal information.
+> **⚠️ IMPORTANT: This tool is for educational and authorized security testing only.**
 
-3. **Follow Laws**: Adhere to relevant laws such as:
-   - GDPR (EU)
-   - CFAA (US)
-   - Local privacy and data protection regulations
+### Do's
+- ✅ Use only on domains/IPs you own or have explicit permission to test
+- ✅ Use for defensive security assessments and vulnerability management
+- ✅ Report discovered vulnerabilities responsibly to affected parties
+- ✅ Comply with local laws (GDPR, CFAA, etc.) and platform Terms of Service
+- ✅ Respect rate limits and avoid excessive scanning
 
-4. **Report Responsibly**: If you discover vulnerabilities (e.g., subdomain takeovers), privately notify the affected parties.
+### Don'ts
+- ❌ Use for unauthorized access or data theft
+- ❌ Use for stalking, harassment, or doxxing
+- ❌ Scan government or critical infrastructure without authorization
+- ❌ Sell or distribute collected data
+- ❌ Use to circumvent security controls
 
-5. **Educational Use**: This tool is for learning and authorized security testing only.
-
-### What NOT to Do
-
-- Do not use this tool for stalking, harassment, or doxxing
-- Do not attempt to claim resources during subdomain takeover checks (passive detection only)
-- Do not circumvent rate limits or terms of service
-- Do not store or distribute personal data without consent
+### Legal Notice
+The authors assume no liability for misuse of this tool. Users are responsible for ensuring their use complies with applicable laws and regulations.
 
 ## Troubleshooting
 
-### Common Issues
+### Build Issues
 
-**"No result" or timeouts**
-- Check internet connection
-- Some services may be rate-limited; wait a few minutes
-- Try with a VPN if your IP is blocked
+**Error: "playwright not found"**
+```bash
+go run github.com/playwright-community/playwright-go/cmd/playwright@latest install
+```
 
-**TikTok/Instagram always returns "Not Found"**
-- These platforms aggressively block automated requests
-- Try different usernames or wait between requests
-- Consider using residential proxies (not included in this tool)
+**Error: "missing go.sum entry"**
+```bash
+go mod tidy
+```
 
-**AbuseIPDB shows "No API key"**
-- Set `export ABUSEIPDB_API_KEY="your_key"`
-- Or ignore - the tool works without it, just without abuse scores
+### Runtime Issues
 
-**SSL certificate errors**
-- Some sites use self-signed certificates; these are noted as "Not found"
+**"crt.sh enumeration failed: HTTP 502"**
+- The crt.sh service occasionally experiences high load
+- The tool automatically falls back to checking the main domain only
+- Retry after a few minutes or use a different domain
 
-## Known Limitations
+**"Timeout reached, some subdomains may not have been analyzed"**
+- Large domain lists may exceed the 90s timeout
+- Increase timeout in `domain.go` if needed, or reduce the subdomain limit
 
-1. **Social Media Blocking**: Platforms like Instagram, TikTok, and Facebook frequently change their anti-bot measures and may block requests or require login.
+**Instagram/TikTok showing "login redirect" or "limited data"**
+- These platforms actively block automated access
+- The tool detects this and reports partial results
+- Consider manual verification for critical assessments
 
-2. **Rate Limiting**: Unauthenticated GitHub API requests are limited to 60/hour.
+**"rate limit exceeded" on IP lookups**
+- ip-api.com free tier: 45 requests/minute
+- AbuseIPDB free tier: 1000 checks/day
+- Add delays between requests if bulk scanning
 
-3. **IP Geolocation Accuracy**: IP geolocation is approximate (city-level accuracy varies by ISP).
+### Platform-Specific Issues
 
-4. **Subdomain Takeover Verification**: Detection is passive (DNS-based). Actual vulnerability verification would require attempting to claim resources, which this tool does NOT do.
+**macOS: "developer cannot be verified"**
+```bash
+xattr -d com.apple.quarantine ./osintmaster
+```
 
-5. **Full Name Search**: Currently basic; comprehensive people search requires paid APIs or databases.
+**Linux: "permission denied"**
+```bash
+chmod +x ./osintmaster
+```
+
+## Limitations
+
+1. **IP Geolocation**: Accuracy varies by provider (typically city-level, not exact location)
+
+2. **Social Networks**: 
+   - Platforms change layouts frequently, breaking scrapers
+   - Rate limiting may require delays between requests
+   - Private profiles cannot be accessed
+
+3. **Domain Enumeration**:
+   - crt.sh may not have all subdomains (relies on CT logs)
+   - Wildcard DNS can produce false positives
+   - Some CDNs block or rate-limit enumeration
+
+4. **Subdomain Takeover**:
+   - Detection is passive (no actual takeover attempt)
+   - Some services require additional validation steps
+   - False positives possible with geo-restricted services
+
+5. **Browser Automation**:
+   - Requires more resources than API calls
+   - Headless browser detection is an ongoing challenge
+   - Some platforms block datacenter IP ranges
+
+## API Sources Used
+
+| Service | Purpose | Rate Limit |
+|---------|---------|------------|
+| ip-api.com | IP geolocation | 45 req/min (free) |
+| AbuseIPDB | IP reputation | 1000/day (free) |
+| crt.sh | Certificate transparency | No limit (best effort) |
+| GitHub API | Profile/repos | 60/hour (unauthenticated) |
+| Reddit API | User profiles | 100 req/min (OAuth) |
 
 ## Development
 
-### Testing
-
+### Running Tests
 ```bash
-# Run all tests
 go test ./...
-
-# Test specific module
-go test ./internal/services/ip/
 ```
 
-### Adding New Features
+### Adding New Platforms
+1. Add network definition to `src/services/username/networks.go`
+2. Implement scraper in `src/services/username/[platform].go`
+3. Add route in `src/services/username/checker.go`
 
-The modular architecture makes it easy to add:
-- New social networks in `internal/services/username/networks.go`
-- New IP providers in `internal/services/ip/providers.go`
-- New subdomain sources in `internal/services/domain/`
+### Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-This project is for educational purposes. Use responsibly and ethically.
+MIT License - See LICENSE file for details
 
-## Author
+## Acknowledgments
 
-[Fahd Aguenouz]
-
----
-
-**Disclaimer**: The authors are not responsible for misuse of this tool. Always ensure you have proper authorization before conducting OSINT investigations.
-```
+- [OSINT Framework](https://osintframework.com/) - Comprehensive OSINT resource collection
+- [IntelTechniques](https://inteltechniques.com/) - OSINT tools and techniques
+- [crt.sh](https://crt.sh/) - Certificate transparency search
+- [AbuseIPDB](https://www.abuseipdb.com/) - IP reputation database
 
 ---
 
-After creating the README, the remaining steps are:
-
-1. **Create `go.mod`** if not exists - ensure it has proper module name
-2. **Add `resources/osint-meme.png`** - copy any relevant OSINT meme image
-3. **Create `.gitignore`**:
-```gitignore
-*.txt
-result*
-!resources/*.txt
-osintmaster
-*.exe
-.env
-```
-
-4. **Final testing** of all features:
-```bash
-./osintmaster --help
-./osintmaster -i 8.8.8.8 -o ip_test.txt
-./osintmaster -u torvalds -o user_test.txt
-./osintmaster -d github.com -o domain_test.txt
-```
-
-
-go get github.com/playwright-community/playwright-go
-go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps chromium
+**Disclaimer**: This project is for educational purposes only. Ensure all activities comply with legal and ethical standards. The authors are not responsible for misuse of this tool.

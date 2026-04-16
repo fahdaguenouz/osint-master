@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"osint/internal/core"
+	"osint/src/core"
 	"strings"
 	"time"
 )
