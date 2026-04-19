@@ -127,12 +127,6 @@ ABUSEIPDB_API_KEY=your_api_key_here
 
 > **Note:** The tool works without this key. Basic IP lookup uses ip-api.com (free, no key required).
 
-### Optional: GitHub Token
-
-For higher rate limits on GitHub API, set:
-```bash
-export GITHUB_TOKEN="your_github_token"
-```
 
 ## Usage
 

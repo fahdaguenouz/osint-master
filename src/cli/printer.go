@@ -79,7 +79,7 @@ func PrintResult(w io.Writer, r core.Result) {
 				r.Username.LastPostDate)
 		}
 
-	case core.KindDomain: 
+	case core.KindDomain:
 		fmt.Fprintf(w, "Main Domain: %s\n", r.Input)
 		fmt.Fprintf(w, "\nSubdomains found: %d\n", len(r.Domain.Subdomains))
 
@@ -89,6 +89,9 @@ func PrintResult(w io.Writer, r core.Result) {
 				ip = "unresolved"
 			}
 			fmt.Fprintf(w, "  - %s (IP: %s)\n", sub.Name, ip)
+			if sub.CNAME != "" && sub.CNAME != sub.Name {
+				fmt.Fprintf(w, "    CNAME: %s\n", sub.CNAME)
+			}
 
 			if sub.SSLValid {
 				fmt.Fprintf(w, "    SSL Certificate: Valid until %s\n", sub.SSLExpiry)

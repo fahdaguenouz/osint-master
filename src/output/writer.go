@@ -81,6 +81,9 @@ func formatForFile(r core.Result) string {
 				ip = "unresolved"
 			}
 			b.WriteString(fmt.Sprintf("  - %s (IP: %s)\n", sub.Name, ip))
+			if sub.CNAME != "" && sub.CNAME != sub.Name {
+				b.WriteString(fmt.Sprintf("    CNAME: %s\n", sub.CNAME))
+			}
 
 			if sub.SSLValid {
 				b.WriteString(fmt.Sprintf("    SSL Certificate: Valid until %s\n", sub.SSLExpiry))
