@@ -43,13 +43,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Always print results (so errors show up in terminal)
-	cli.PrintResult(os.Stdout, res)
 
-	// If there was an error during execution, don't write to file
 	if runErr != nil {
-		os.Exit(1)
-	}
+        fmt.Fprintf(os.Stderr, "Execution failed: %v\n", runErr)
+        os.Exit(1) // Exit immediately before trying to print or save empty results
+    }
+	// Always print results 
+	cli.PrintResult(os.Stdout, res)
 
 	// Determine output filename
 	filename := opts.Output

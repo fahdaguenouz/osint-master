@@ -14,7 +14,7 @@ const (
 	ModeNone     Mode = iota
 	ModeIP            // -i
 	ModeUsername      // -u
-	ModeDomain        // -d (NEW)
+	ModeDomain        // -d
 )
 
 type Options struct {
@@ -96,7 +96,7 @@ func ParseArgs(args []string) (Options, bool, error) {
 		return Options{}, true, nil // Show help
 	}
 	if selected > 1 {
-		return Options{}, false, errors.New("choose only one option: -n, -i, -u, or -d")
+		return Options{}, false, errors.New("choose only one option: -i, -u, or -d")
 	}
 	if strings.TrimSpace(query) == "" {
 		return Options{}, false, fmt.Errorf("missing value for selected option")
