@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"osint/src/core"
@@ -24,25 +25,55 @@ func Run(query string) (core.Result, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// 1. Get geolocation data from ip-api.com (free, no key required)
+	// Initialize providers
 	geoProvider := NewIPAPIProvider()
-	isp, city, country, asn, lat, lon, geoSource, err := geoProvider.Lookup(ctx, q)
-	if err != nil {
-		r.Warnings = append(r.Warnings, fmt.Sprintf("Geolocation lookup failed: %v", err))
-	}
-	r.Sources = append(r.Sources, geoSource)
-
-	// 2. Check abuse reputation from AbuseIPDB (optional, requires API key)
 	abuseProvider := NewAbuseIPDBProvider()
-	abuseScore, abuseReports, lastReported, abuseSource, abuseErr := abuseProvider.CheckIP(ctx, q)
+
+	// We use a WaitGroup to run both network requests at the exact same time
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Variables to hold the results from the goroutines
+	var (
+		isp, city, country, asn, geoSource string
+		lat, lon                           float64
+		geoErr                             error
+
+		abuseScore, abuseReports           int
+		lastReported, abuseSource          string
+		abuseErr                           error
+	)
+
+	// 1. Fetch Geolocation Data concurrently
+	go func() {
+		defer wg.Done()
+		isp, city, country, asn, lat, lon, geoSource, geoErr = geoProvider.Lookup(ctx, q)
+	}()
+
+	// 2. Fetch Abuse Reputation concurrently
+	go func() {
+		defer wg.Done()
+		abuseScore, abuseReports, lastReported, abuseSource, abuseErr = abuseProvider.CheckIP(ctx, q)
+	}()
+
+	// Wait for both API calls to finish
+	wg.Wait()
+
+	// Handle GeoIP results
+	if geoErr != nil {
+		r.Warnings = append(r.Warnings, fmt.Sprintf("Geolocation lookup failed: %v", geoErr))
+	} else {
+		r.Sources = append(r.Sources, geoSource)
+	}
+
+	// Handle AbuseIPDB results
 	if abuseErr != nil {
-		// Only warn, don't fail - this is optional enhancement
 		r.Warnings = append(r.Warnings, fmt.Sprintf("Abuse check skipped: %v", abuseErr))
 	} else {
 		r.Sources = append(r.Sources, abuseSource)
 	}
 
-	// Build the result
+	// Build the final result
 	r.IP = core.IPResult{
 		IP:           q,
 		ISP:          isp,
@@ -55,7 +86,6 @@ func Run(query string) (core.Result, error) {
 		AbuseReports: abuseReports,
 	}
 
-	// Format known issues message
 	if abuseErr != nil || abuseScore == 0 {
 		r.IP.KnownIssues = "No reported abuse"
 	} else {
