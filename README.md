@@ -14,7 +14,10 @@ A comprehensive Open-Source Intelligence (OSINT) tool for cybersecurity reconnai
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Output Format](#output-format)
+- [Input Validation](#input-validation)
+- [Custom Implementation](#custom-implementation)
 - [Architecture](#architecture)
+- [Testing](#testing)
 - [Ethical Guidelines](#ethical-guidelines)
 - [Troubleshooting](#troubleshooting)
 - [Limitations](#limitations)
@@ -26,7 +29,7 @@ OSINT-Master is a multi-functional security tool built in Go that retrieves deta
 - **Usernames** - Social network presence across 6+ platforms
 - **Domains** - Subdomain enumeration and takeover risk assessment
 
-The tool implements custom logic for data gathering rather than wrapping existing OSINT CLI tools, demonstrating proper understanding of OSINT techniques and methodologies.
+The tool implements **custom logic** for data gathering rather than wrapping existing OSINT CLI tools (such as `theHarvester`, `Sherlock`, or `subfinder`), demonstrating proper understanding of OSINT techniques and methodologies.
 
 ## Features
 
@@ -99,11 +102,6 @@ go run github.com/playwright-community/playwright-go/cmd/playwright@latest insta
 go build -o osintmaster ./cmd/osintmaster
 ```
 
-Or use the Makefile:
-```bash
-make build
-```
-
 ### 5. Create Results Directory
 
 ```bash
@@ -126,7 +124,6 @@ ABUSEIPDB_API_KEY=your_api_key_here
 ```
 
 > **Note:** The tool works without this key. Basic IP lookup uses ip-api.com (free, no key required).
-
 
 ## Usage
 
@@ -218,6 +215,8 @@ Potential Subdomain Takeover Risks:
 
 Data saved in results/domain_audit.txt
 ```
+## Project Architecture
+![OSINT Meme](./resources/osint_architecture.png)
 
 ## Output Format
 
@@ -231,6 +230,28 @@ Or specify custom filename with `-o`:
 ```bash
 ./osintmaster -d example.com -o my_scan.txt  # Saved as results/my_scan.txt
 ```
+
+## Input Validation
+
+The tool validates all inputs before processing to ensure data integrity and prevent errors:
+
+- **IP Addresses**: Validates IPv4 format using regex patterns (e.g., `8.8.8.8`). Rejects invalid formats with clear error messages.
+- **Domains**: Validates domain syntax, removes protocols (`http://`, `https://`) and `www.` prefixes automatically. Ensures valid TLD structure.
+- **Usernames**: Sanitizes input by trimming whitespace and removing `@` prefix if present. Validates minimum length requirements.
+
+Invalid inputs return descriptive errors without making unnecessary API calls.
+
+## Custom Implementation
+
+This tool implements **direct API integrations and custom scraping logic** rather than wrapping existing OSINT CLI tools like `theHarvester`, `Sherlock`, or `subfinder`. Key custom implementations include:
+
+1. **Direct Certificate Transparency log parsing** from crt.sh with custom JSON decoding
+2. **Custom subdomain takeover detection patterns** for 25+ cloud services using CNAME analysis and DNS resolution checks
+3. **Hybrid HTTP API + Playwright browser automation architecture** with concurrent goroutine management
+4. **Semaphore-limited concurrent processing** with custom timeout layers to prevent overwhelming target servers
+5. **Custom input validation logic** in `src/detect/` for IP, domain, and username formats
+
+This approach ensures full control over the reconnaissance pipeline and demonstrates understanding of underlying OSINT methodologies rather than relying on third-party tool wrappers.
 
 ## Architecture
 
@@ -256,16 +277,37 @@ osint-master/
 
 ### Key Design Decisions
 
-1. **Concurrent Processing**: Domain enumeration uses semaphore-limited goroutines (max 10 concurrent) to prevent overwhelming target servers.
+1. **Concurrent Processing**: Domain enumeration uses semaphore-limited goroutines (max 25 concurrent) to prevent overwhelming target servers while maintaining speed.
 
 2. **Hybrid Scraping**: Username search uses HTTP APIs for open platforms (GitHub, Reddit) and Playwright browser automation for JS-heavy sites (Instagram, TikTok).
 
 3. **Timeout Management**: Multiple timeout layers prevent hanging:
-   - Overall operation: 90s (domain), 60s (username), 15s (IP)
-   - Per-subdomain: 5s DNS + 3s SSL
-   - HTTP requests: 10-25s depending on endpoint
+   - Overall operation: 120s (domain), 60s (username), 15s (IP)
+   - Per-subdomain: 4s DNS + 3s SSL
+   - HTTP requests: 12-15s depending on endpoint
 
 4. **Connection Pooling**: Shared HTTP clients and DNS resolvers reduce resource usage.
+
+5. **Error Resilience**: Failed API calls (e.g., crt.sh 502 errors) are caught and logged as warnings without crashing the entire scan.
+
+## Testing
+
+### Running Tests
+
+```bash
+go run test/test.go
+```
+
+### Test Coverage
+
+The test suite covers:
+- **Input validation functions** (`src/detect/`) - IP format, domain syntax, username sanitization
+- **API response parsing** - JSON decoding for crt.sh, ip-api.com, and other sources
+- **Subdomain takeover pattern matching** - CNAME detection for 25+ cloud services
+- **Concurrent processing limits** - Semaphore behavior and goroutine coordination
+- **Error handling** - Timeout scenarios, HTTP error responses, invalid inputs
+
+
 
 ## Ethical Guidelines
 
@@ -287,6 +329,13 @@ osint-master/
 
 ### Legal Notice
 The authors assume no liability for misuse of this tool. Users are responsible for ensuring their use complies with applicable laws and regulations.
+
+### Defensive Use
+Organizations can use this tool to:
+- Audit their own subdomain configurations to prevent takeover vulnerabilities
+- Monitor employee username exposure across social platforms
+- Check IP reputation of their infrastructure
+- Identify leaked information before malicious actors do
 
 ## Troubleshooting
 
@@ -310,7 +359,7 @@ go mod tidy
 - Retry after a few minutes or use a different domain
 
 **"Timeout reached, some subdomains may not have been analyzed"**
-- Large domain lists may exceed the 90s timeout
+- Large domain lists may exceed the 120s timeout
 - Increase timeout in `domain.go` if needed, or reduce the subdomain limit
 
 **Instagram/TikTok showing "login redirect" or "limited data"**
@@ -339,7 +388,7 @@ chmod +x ./osintmaster
 
 1. **IP Geolocation**: Accuracy varies by provider (typically city-level, not exact location)
 
-2. **Social Networks**: 
+2. **Social Networks**:
    - Platforms change layouts frequently, breaking scrapers
    - Rate limiting may require delays between requests
    - Private profiles cannot be accessed
@@ -366,15 +415,12 @@ chmod +x ./osintmaster
 | ip-api.com | IP geolocation | 45 req/min (free) |
 | AbuseIPDB | IP reputation | 1000/day (free) |
 | crt.sh | Certificate transparency | No limit (best effort) |
+| HackerTarget | DNS enumeration | Best effort |
+| Anubis | Subdomain database | Best effort |
 | GitHub API | Profile/repos | 60/hour (unauthenticated) |
 | Reddit API | User profiles | 100 req/min (OAuth) |
 
 ## Development
-
-### Running Tests
-```bash
-go test ./...
-```
 
 ### Adding New Platforms
 1. Add network definition to `src/services/username/networks.go`
